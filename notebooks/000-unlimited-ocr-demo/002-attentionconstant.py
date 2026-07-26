@@ -727,10 +727,11 @@ assert receptive_field_path.exists()
 
 # %% [markdown]
 # ## Profile Memory During Generation
-# Attach a forward hook to record GPU memory after every decoder forward call.
-# Step 0 is the prefill pass; subsequent steps are autoregressive decode steps.
-# With R-SWA the KV cache is bounded, so allocated memory should stop growing
-# once the ring buffer is full.
+# Attach a forward hook to record GPU allocated and peak allocated memory after
+# every decoder forward call. Step 0 is the prefill pass; subsequent steps are
+# autoregressive decode steps. With R-SWA the KV cache is bounded, so allocated
+# memory should stop growing once the ring buffer is full, and the peak since
+# reset should therefore plateau too.
 
 
 # %%
@@ -778,7 +779,7 @@ class GenerationMemoryProfiler:
         self._step = 0
 
     def _make_hook(self):
-        """Return a forward hook that logs memory after every decoder call."""
+        """Return a forward hook that logs allocated and peak memory after every decoder call."""
 
         def hook(module, inp, out):
             seq_len = out[0].shape[1]
@@ -787,7 +788,6 @@ class GenerationMemoryProfiler:
                     "step": self._step,
                     "seq_len": seq_len,
                     "allocated_mb": torch.cuda.memory_allocated() / (1024**2),
-                    "reserved_mb": torch.cuda.memory_reserved() / (1024**2),
                     "peak_mb": torch.cuda.max_memory_allocated() / (1024**2),
                 }
             )
@@ -959,8 +959,9 @@ for p in RESULT_ARTIFACTS.values():
 # %% [markdown]
 # ## Plot Measured Memory and Theoretical Cache
 # Draw two figures:
-#   1. The measured GPU memory per forward step.  The prefill step is high;
-#      decode steps should flatten after the recent window is filled.
+#   1. The measured allocated and peak allocated GPU memory per forward step.
+#      The prefill step is high; decode steps should flatten after the recent
+#      window is filled.
 #   2. The theoretical KV-cache token count for vanilla full attention vs R-SWA.
 
 
@@ -1017,7 +1018,7 @@ class MemoryPlotter:
         return self.plots_dir / name
 
     def plot_memory_trace(self, baseline_mb: float) -> Path:
-        """Plot measured allocated and reserved memory per forward step.
+        """Plot measured allocated and peak allocated memory per forward step.
 
         Parameters
         ----------
@@ -1033,7 +1034,7 @@ class MemoryPlotter:
         decode = self.trace[1:]
         decode_steps = [r["step"] for r in decode]
         decode_allocated = [r["allocated_mb"] - baseline_mb for r in decode]
-        decode_reserved = [r["reserved_mb"] - baseline_mb for r in decode]
+        decode_peak = [r["peak_mb"] - baseline_mb for r in decode]
 
         fig, ax = plt.subplots(figsize=(10, 5))
         # prefill shown as a single marker, decode shown as a line
@@ -1047,12 +1048,12 @@ class MemoryPlotter:
         )
         ax.scatter(
             [prefill["step"]],
-            [prefill["reserved_mb"] - baseline_mb],
+            [prefill["peak_mb"] - baseline_mb],
             color="darkgreen",
             s=80,
             marker="s",
             zorder=5,
-            label="Prefill reserved memory",
+            label="Prefill peak allocated memory",
         )
         ax.plot(
             decode_steps,
@@ -1062,8 +1063,8 @@ class MemoryPlotter:
         )
         ax.plot(
             decode_steps,
-            decode_reserved,
-            label="Decode reserved memory",
+            decode_peak,
+            label="Decode peak allocated memory",
             lw=1.2,
             alpha=0.8,
         )
