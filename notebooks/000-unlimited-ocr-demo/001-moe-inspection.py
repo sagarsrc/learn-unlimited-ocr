@@ -894,3 +894,24 @@ logger.info(
 logger.info(
     "Gate score distribution: softmax over all 64 experts computed per token in the target layer."
 )
+
+
+# %% [markdown]
+# ## Display Plots
+# Render the saved MoE plots inline when running in a notebook.
+
+# %%
+try:
+    from IPython.display import Image as IPImage, display
+
+    for fname in (
+        "01_gate_scores.png",
+        "02_topk_selections.png",
+        "03_expert_load.png",
+        "04_aggregate_usage.png",
+    ):
+        plot_path = CONFIG.out_dir / fname
+        if plot_path.exists():
+            display(IPImage(filename=str(plot_path)))
+except Exception as exc:  # noqa: BLE001
+    logger.info("Display skipped (not running in a notebook frontend): %s", exc)

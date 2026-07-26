@@ -878,3 +878,32 @@ logger.info("BASE mode: image_size=1024, crop_mode=False")
 logger.info("Multi-page mode: image_size=1024, ngram_window=1024")
 logger.info("Long outputs: keep max_length=32768 and no_repeat_ngram_size=35")
 logger.info("Change CONFIG.runs or CONFIG.source to try other configurations")
+
+
+# %% [markdown]
+# ## Display Results
+# Render the generated result markdown and boxed images inline when running in a notebook.
+
+# %%
+try:
+    from IPython.display import Markdown, Image as IPImage, display
+
+    for run in CONFIG.runs:
+        run_dir = CONFIG.out_dir / run.name
+        for mode in ("single_gundam", "single_base", "multi_page"):
+            mode_dir = run_dir / mode
+            if not mode_dir.exists():
+                continue
+            result_md = mode_dir / "result.md"
+            box_images = sorted(mode_dir.glob("result_with_boxes*.jpg"))
+            if not result_md.exists() and not box_images:
+                continue
+            display(Markdown(f"### {run.name} / {mode}"))
+            if result_md.exists():
+                display(
+                    Markdown(result_md.read_text(encoding="utf-8", errors="replace"))
+                )
+            for img_path in box_images:
+                display(IPImage(filename=str(img_path)))
+except Exception as exc:  # noqa: BLE001
+    logger.info("Display skipped (not running in a notebook frontend): %s", exc)

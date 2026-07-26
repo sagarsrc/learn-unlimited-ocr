@@ -1248,3 +1248,22 @@ logger.info(
     "not L_m + T, which is why the measured GPU memory stays flat.",
     TOKEN_BUDGET["recent_window"],
 )
+
+
+# %% [markdown]
+# ## Display Plots
+# Render the saved R-SWA plots inline when running in a notebook.
+
+# %%
+try:
+    from IPython.display import Image as IPImage, display
+
+    for plot_path in (
+        memory_trace_path,
+        cache_theory_path,
+        receptive_field_path,
+    ):
+        if plot_path.exists():
+            display(IPImage(filename=str(plot_path)))
+except Exception as exc:  # noqa: BLE001
+    logger.info("Display skipped (not running in a notebook frontend): %s", exc)
