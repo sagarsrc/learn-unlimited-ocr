@@ -124,7 +124,7 @@ class Config:
 TODAY = datetime.datetime.now().strftime("%Y-%m-%d")
 CONFIG = Config(
     work_dir=Path.cwd(),
-    out_dir=Path(f"outputs/{TODAY}/unlimited-ocr-demo-run-unlimited-ocr"),
+    out_dir=Path(f"outputs/{TODAY}/000-unlimited-ocr-demo/000-run-unlimited-ocr"),
     model_name="baidu/Unlimited-OCR",
     source="pdf",
     pdf_url="https://github.com/baidu/Unlimited-OCR/raw/main/Unlimited-OCR.pdf",
