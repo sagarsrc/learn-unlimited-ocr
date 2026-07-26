@@ -1,5 +1,15 @@
+# %% [markdown]
+# # Inspect Unlimited-OCR MoE
+# Inspect Unlimited-OCR's mixture-of-experts layers, router scores, expert routing,
+# and expert-usage patterns during a small forward pass.
+#
+# This notebook explains how tokens move through the MoE blocks and saves plots,
+# tables, and JSON summaries that make routing behavior visible. It complements the
+# baseline OCR demo by focusing on architecture internals rather than OCR output.
+
 # %%
 import datetime
+import json
 import logging
 import sys
 from dataclasses import dataclass, replace
@@ -13,7 +23,8 @@ import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn.functional as F
-from IPython.display import Image as IPImage, display
+from IPython.display import Image as IPImage, Markdown, display
+from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

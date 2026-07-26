@@ -1,18 +1,19 @@
+# %% [markdown]
+# # Show Constant Decoder Memory
+# Demonstrate that Unlimited-OCR's decoder memory stays constant during generation.
+#
+# This notebook is the companion to `000-run-unlimited-ocr.py`. It focuses on the
+# Reference Sliding Window Attention (R-SWA) described in the Unlimited-OCR paper:
+#
+#     https://github.com/baidu/Unlimited-OCR/blob/main/Unlimited-OCR.pdf
+#
+# The key claim verified here is that, because every visual token and the prompt
+# form a fixed reference prefix of length L_m, and because the decoder only keeps
+# the most recent n output tokens in its KV cache, the total KV cache size is
+# bounded by L_m + n throughout the whole inference run. Standard full attention
+# would grow as L_m + T (T = generated length), but R-SWA does not.
+
 # %%
-"""Demonstrate that Unlimited-OCR's decoder memory stays constant during generation.
-
-This notebook is the companion to `000-run-unlimited-ocr.py`.  It focuses on the
-Reference Sliding Window Attention (R-SWA) described in the Unlimited-OCR paper:
-
-    https://github.com/baidu/Unlimited-OCR/blob/main/Unlimited-OCR.pdf
-
-The key claim verified here is that, because every visual token and the prompt
-form a fixed reference prefix of length L_m, and because the decoder only keeps
-the most recent n output tokens in its KV cache, the total KV cache size is
-bounded by L_m + n throughout the whole inference run.  Standard full attention
-would grow as L_m + T (T = generated length), but R-SWA does not.
-"""
-
 import datetime
 import gc
 import json
@@ -28,10 +29,11 @@ import fitz
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import requests
 import seaborn as sns
 import torch
-from IPython.display import Image as IPImage, display
+from IPython.display import Image as IPImage, Markdown, display
 from matplotlib.colors import ListedColormap
 from PIL import Image, ImageOps
 from torchvision import transforms

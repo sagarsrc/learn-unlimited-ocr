@@ -1,4 +1,15 @@
+# %% [markdown]
+# # Run Unlimited-OCR
+# Load Baidu's Unlimited-OCR model, prepare a sample document image, run OCR inference,
+# and save intermediate artifacts for inspection.
+#
+# This notebook is the baseline end-to-end demo for the Unlimited-OCR workflow. It
+# covers environment checks, sample PDF/image handling, model loading, prompt setup,
+# generation, and output visualization. Later notebooks inspect model internals and
+# memory behavior using the same project conventions and artifact layout.
+
 # %%
+import json
 import datetime
 import logging
 import math
@@ -523,7 +534,7 @@ class ModelLoader:
             self.config.model_name,
             trust_remote_code=True,
             use_safetensors=True,
-            torch_dtype=self.config.dtype,
+            dtype=self.config.dtype,
         )
         model = model.eval().cuda()
         logger.info("[ModelLoader] Model loaded")
@@ -537,6 +548,127 @@ logger.info(
     type(tokenizer).__name__,
     type(model).__name__,
 )
+
+
+# %% [markdown]
+# ## Patch Model Forward
+# Unlimited-OCR's vision tower returns float32 features, but text embeddings are
+# bfloat16 under autocast. This patch casts vision features to the embedding
+# dtype before the in-place `masked_scatter_` call inside `UnlimitedOCRModel.forward`.
+
+
+# %%
+class UnlimitedOcrDtypePatch:
+    """Scoped dtype fix for UnlimitedOCRModel.forward.
+
+    The model's image encoder produces float32 visual features, while the text
+    embeddings created under ``torch.autocast("cuda", dtype=torch.bfloat16)``
+    are bfloat16. PyTorch's in-place ``masked_scatter_`` requires the source
+    and destination to share the same dtype, so this patch casts the source to
+    the destination dtype only while the patched forward runs.
+    """
+
+    _orig_forward: Callable[..., Any]
+    _orig_masked_scatter_: Callable[..., Any]
+
+    @staticmethod
+    def _masked_scatter_cast(
+        orig: Callable[..., Any],
+        tensor: torch.Tensor,
+        mask: torch.Tensor,
+        source: torch.Tensor,
+    ) -> torch.Tensor:
+        """Cast source to tensor dtype before in-place masked scatter.
+
+        Parameters
+        ----------
+        orig : Callable[..., Any]
+            Required. Original ``torch.Tensor.masked_scatter_``.
+        tensor : torch.Tensor
+            Required. Destination tensor.
+        mask : torch.Tensor
+            Required. Boolean mask.
+        source : torch.Tensor
+            Required. Source tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Result of the original in-place scatter.
+        """
+        if source.dtype != tensor.dtype:
+            source = source.to(tensor.dtype)
+        return orig(tensor, mask, source)
+
+    def _patched_masked_scatter(
+        self,
+        mask: torch.Tensor,
+        source: torch.Tensor,
+    ) -> torch.Tensor:
+        """Replacement masked_scatter_ used during the patched forward.
+
+        Parameters
+        ----------
+        mask : torch.Tensor
+            Required. Boolean mask.
+        source : torch.Tensor
+            Required. Source tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Result of the original in-place scatter.
+        """
+        return UnlimitedOcrDtypePatch._masked_scatter_cast(
+            UnlimitedOcrDtypePatch._orig_masked_scatter_,
+            self,
+            mask,
+            source,
+        )
+
+    def _forward(self, *args: Any, **kwargs: Any) -> Any:
+        """Wrapped forward that dtype-normalizes masked_scatter_.
+
+        Parameters
+        ----------
+        *args : Any
+            Required. Positional arguments forwarded to the original model forward.
+        **kwargs : Any
+            Required. Keyword arguments forwarded to the original model forward.
+
+        Returns
+        -------
+        Any
+            Output of the original model forward.
+        """
+        UnlimitedOcrDtypePatch._orig_masked_scatter_ = torch.Tensor.masked_scatter_
+        torch.Tensor.masked_scatter_ = UnlimitedOcrDtypePatch._patched_masked_scatter
+        try:
+            return UnlimitedOcrDtypePatch._orig_forward(self, *args, **kwargs)
+        finally:
+            torch.Tensor.masked_scatter_ = UnlimitedOcrDtypePatch._orig_masked_scatter_
+
+    @classmethod
+    def apply(cls, model: AutoModel) -> None:
+        """Apply the patch to the model class if not already applied.
+
+        Parameters
+        ----------
+        model : AutoModel
+            Required. Loaded Unlimited-OCR model.
+        """
+        target_cls = model.model.__class__
+        if getattr(target_cls, "_uocr_dtype_patched", False):
+            logger.info("[Patch] Already applied to %s.forward", target_cls.__name__)
+            return
+        cls._orig_forward = target_cls.forward
+        target_cls.forward = cls._forward
+        target_cls._uocr_dtype_patched = True
+        logger.info("[Patch] Applied dtype fix to %s.forward", target_cls.__name__)
+
+
+UnlimitedOcrDtypePatch.apply(model)
+logger.info("Outputs: model forward patched for dtype safety")
 
 
 # %% [markdown]
