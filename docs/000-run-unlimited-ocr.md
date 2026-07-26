@@ -1,155 +1,143 @@
-# Run the `000-run-unlimited-ocr` notebook
+# 000 — What Unlimited-OCR actually reads from its own paper (BASE mode, page 1)
 
-Notebook: `notebooks/000-unlimited-ocr-demo/notebooks-py/000-run-unlimited-ocr.py`
+- Notebook: `notebooks/000-unlimited-ocr-demo/notebooks-py/000-run-unlimited-ocr.py`
+- Output folder: `outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/`
 
-This notebook loads `baidu/Unlimited-OCR` through `transformers`, renders a test document, and runs local single-page / multi-page inference. It also replicates the BASE-mode pipeline step-by-step so every intermediate artifact can be inspected.
+## The question
 
-## Purpose
+Unlimited-OCR claims one-shot document parsing: no separate layout-analysis stage, just a vision
+encoder + LLM decoder emitting structured text. Before trusting that claim on hard documents, this
+notebook asks a minimal, checkable question:
 
-- Demonstrate end-to-end document parsing with `baidu/Unlimited-OCR` without starting an SGLang server.
-- Show three inference modes:
-  - `single_gundam` — cropped patches (`crop_mode=True`, `image_size=640`).
-  - `single_base` — single square view (`crop_mode=False`, `image_size=1024`).
-  - `multi_page` — stitched multi-page context.
-- Expose and save every intermediate artifact: preprocessed image, tokenized prompt, raw model string, parsed layout CSV, label distribution, and boxed result.
+> **Given a single clean page (page 1 of the Unlimited-OCR paper itself), does the model
+> recover not just the words, but the *structure* — which text is a header, a title, body
+> text, a figure, a caption — in one decoding pass?**
 
-Default run is intentionally minimal: one page, BASE-only.
+The interesting part is not whether it can read (any modern OCR reads a clean page). It is whether
+the raw output already carries layout semantics that downstream code can turn into a table, a boxed
+image, and a markdown document without extra models.
 
-## Prerequisites
+## The experiment
 
-- Python 3.12+ and `uv`.
-- Hugging Face token in `.env` if needed for model download or gated access:
+One page, one mode, greedy decoding. The committed config runs `first_1_base`: page 1 of the paper
+rasterized at 300 DPI, BASE mode (single square view, no cropping), `max_length=32768`,
+`no_repeat_ngram_size=35`.
 
-```bash
-echo 'HF_TOKEN=hf_...' > .env
-source .env
+What the model actually saw, measured rather than assumed:
+
+- Input page: 2481 × 3508 px PNG — [`00_input_page.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png).
+- BASE preprocessing letterboxes that onto a 1024 × 1024 gray canvas and normalizes to a `[3, 1024, 1024]` bfloat16 tensor in [-1, 1] — [`01_preprocessed_global_view.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png).
+- Tokenized prompt — [`02_tokenized_prompt.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json):
+
+```json
+{
+  "formatted_prompt": "<image>document parsing.",
+  "num_tokens": 277,
+  "num_visual_tokens": 273,
+  "num_text_tokens": 4,
+  "num_queries_per_side": 16
+}
 ```
 
-- Virtual environment at `.venv` with project dependencies:
+The token budget is the first real finding: **273 of 277 input tokens are visual**, and 273 = 16² +
+16 + 1 — the notebook replicates the model's own scheme of a 16 × 16 grid of visual queries plus
+row/column separators. The entire "instruction" is 4 text tokens (`document parsing.`). So this
+experiment tests image → structured-text behavior with almost zero linguistic steering. Whatever
+structure appears in the output came from the image, not from a clever prompt.
 
-```bash
-uv venv --python 3.12
-source .venv/bin/activate
-uv sync
-```
+## Evidence: the raw stream is the whole story
 
-- CUDA GPU. The notebook selects `bfloat16` when supported, otherwise `float16`.
+Everything downstream — the CSV, the boxed image, the final markdown — is a re-rendering of one decoded string: [`03_raw_generated_text.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt).
 
-## How to run
-
-Run from the repo root so relative paths resolve:
-
-```bash
-cd /workspace/learn-unlimited-ocr
-source .venv/bin/activate
-export CUDA_VISIBLE_DEVICES=0
-python notebooks/000-unlimited-ocr-demo/notebooks-py/000-run-unlimited-ocr.py
-```
-
-The `.py` file uses `# %%` cells and is runnable as a script.
-
-## Notebook structure
-
-1. **Check Environment** — assert CUDA, pick dtype.
-2. **Load Model** — load tokenizer and `baidu/Unlimited-OCR` with `trust_remote_code=True`.
-3. **Load Document** — download / cache the PDF or render synthetic pages.
-4. **Visualize Input** — display the first loaded page.
-5. **Showcase: Input Image** — save `00_input_page.png` under `intermediate/`.
-6. **Inference Runners** — execute all `RunConfig` entries (GUNDAM, BASE, multi-page).
-7. **Showcase: BASE Pipeline Intermediates** — replicate BASE-mode preprocessing, tokenization, generation, parsing, and boxing.
-8. **Inspect Outputs** — list every file produced by the run.
-9. **Final Validation** — assert expected artifacts exist.
-10. **Display Results** — render `result.md` and boxed images inline in a notebook frontend.
-
-## Inputs
-
-- **Document source**:
-  - PDF (default): `https://github.com/baidu/Unlimited-OCR/raw/main/Unlimited-OCR.pdf`
-  - Synthetic: set `CONFIG.source = "synthetic"` to render sample pages.
-- **Cached PDF path**: `inputs/Unlimited-OCR.pdf` (downloaded once).
-- **Page selection**: controlled by `RunConfig.max_pages`. Default `first_1_base` uses `max_pages=1`.
-- **Preprocessing / inference parameters** (from `CONFIG`):
-
-```python
-base_size=1024              # square canvas used for padding
-gundam_image_size=640       # patch size for GUNDAM (cropped) mode
-base_image_size=1024        # patch size for BASE mode
-multi_image_size=1024       # patch size for multi-page mode
-max_length=32768
-no_repeat_ngram_size=35
-gundam_ngram_window=128
-base_ngram_window=128
-multi_ngram_window=1024
-sample_dpi=300              # PDF rasterization DPI
-```
-
-- **Default run**: one page, BASE-only (`run_gundam=False`, `run_base=True`, `run_multi=False`).
-
-## Outputs
-
-Final outputs are written under:
+Its spine:
 
 ```text
-outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/000-run-unlimited-ocr/<run_name>/<mode>/
+<|det|>header [123, 29, 325, 75]<|/det|>Baidu百度
+<|det|>title [358, 134, 642, 154]<|/det|>Unlimited OCR Works
+<|det|>text [288, 162, 711, 180]<|/det|>Welcome the Era of One-shot Long-horizon Parsing
+<|det|>text [456, 212, 542, 226]<|/det|>Baidu Inc.
+<|det|>title [449, 273, 550, 291]<|/det|>Abstract
+<|det|>text [113, 318, 885, 590]<|/det|>Recently, end-to-end OCR models, exemplified by DeepSeek OCR, ...
+<|det|>image [168, 601, 825, 802]<|/det|>
+<|det|>image_caption [113, 813, 885, 896]<|/det|>Figure 1 | Illustration of Reference Sliding Window Attention (R-SWA). ...<｜end▁of▁sentence｜>
 ```
 
-For the default run:
+The format is `<|det|>LABEL [x1, y1, x2, y2]<|/det|>CONTENT`. Coordinates live on a normalized
+~0–1000 grid (max coordinate seen: 896), not in pixels of the 2481 × 3508 page.
 
-```text
-outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/
-├── result.md                 # parsed markdown
-└── result_with_boxes*.jpg    # page with layout boxes drawn
-```
+The pipeline from this one string to every other artifact:
 
-Per-mode directories (`single_gundam`, `single_base`, `multi_page`) are created only when the corresponding flag is enabled in `RunConfig`.
+1. **Regex parse → CSV.** `uocr.re_match` extracts each span; the notebook flattens it to one row per box in [`04_layout_predictions.csv`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv) — 8 rows, columns `label, box, x1, y1, x2, y2`. Full table:
 
-## Intermediate outputs
+   | label | box |
+   |---|---|
+   | header | `[123, 29, 325, 75]` |
+   | title | `[358, 134, 642, 154]` |
+   | text | `[288, 162, 711, 180]` |
+   | text | `[456, 212, 542, 226]` |
+   | title | `[449, 273, 550, 291]` |
+   | text | `[113, 318, 885, 590]` |
+   | image | `[168, 601, 825, 802]` |
+   | image_caption | `[113, 813, 885, 896]` |
 
-The BASE pipeline showcase saves the following under:
+Label counts, plotted in [`04_label_distribution.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png): **text 3, title 2, header 1, image 1, image_caption 1.**
 
-```text
-outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/
-```
+2. **Boxes → visualization.** The same matches are drawn back onto the original page by `uocr.process_image_with_refs`, producing [`05_result_with_boxes.jpg`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg) and the equivalent `result_with_boxes.jpg` written by `model.infer` itself.
 
-| File | Description |
-|------|-------------|
-| `00_input_page.png` | Raw input page raster. |
-| `01_preprocessed_global_view.png` | Padded square RGB view fed to the model. |
-| `01_preprocessed_tensor.png` | Normalized `[3, H, W]` tensor saved as image. |
-| `02_tokenized_prompt.json` | Token counts, image token ID, and `input_ids`. |
-| `02_formatted_prompt.txt` | Text returned by `uocr.format_messages(...)`. |
-| `03_raw_generated_text.txt` | Full decoded model output including `<|det|>` tokens. |
-| `04_layout_predictions.csv` | Parsed `(label, x1, y1, x2, y2)` rows. |
-| `04_label_distribution.png` | `seaborn` count plot of predicted labels. |
-| `05_result_with_boxes.jpg` | Input page with parsed boxes overlaid. |
+3. **Stream → final markdown.** `model.infer` strips the tags into [`result.md`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md). One special case: the `image` region has **empty content after its `<|/det|>` tag** — the model does not describe figures, it localizes them. The pipeline crops the box `[168, 601, 825, 802]` out of the page into `images/0.jpg` and substitutes a markdown embed, so the abstract paragraph is followed by a markdown image reference to `images/0.jpg` and then the caption text.
 
-A run log is also written next to the outputs:
+So: raw `<|det|>` stream is the single source of truth; CSV is its tabular view, the boxed JPEG its
+spatial view, `result.md` its reading view. Debugging any of the three means reading the stream
+first.
 
-```text
-outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/000-run-unlimited-ocr/run.log
-```
+## Interpretation: what the model did well
 
-## Expected artifact paths
+- **Reading order and hierarchy are correct.** Header → title → subtitle → affiliation → "Abstract"
+  → body → figure → caption matches the true page order, and the label assignment mostly matches
+  human judgment (logo as `header`, paper title as `title`, subtitle as `text`).
+- **The hard part — the abstract — is right.** The abstract is one dense ~150-word paragraph; the
+  model grouped it as a single `text` block `[113, 318, 885, 590]` and the transcription is clean,
+  including em-dashes, the acronym R-SWA, and the GitHub URL.
+- **Figure vs. caption separation worked.** The figure was emitted as a pure localization (empty
+  `image` content) while its caption was transcribed verbatim as a distinct `image_caption` region —
+  exactly the behavior a downstream document store wants: crop the pixels, keep the caption as
+  searchable text.
+- **Structure genuinely comes from the image.** With only 4 text tokens of prompt, the label
+  vocabulary (`header/title/text/image/image_caption`) and the box coordinates are the model's own
+  reading of the page, not prompt parroting.
 
-Default run (`first_1_base`, BASE mode):
+## What to inspect visually (don't trust the counts alone)
 
-```text
-outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/000-run-unlimited-ocr/
-├── run.log
-├── first_1_base/
-│   └── single_base/
-│       ├── result.md
-│       └── result_with_boxes*.jpg
-└── intermediate/
-    ├── 00_input_page.png
-    ├── 01_preprocessed_global_view.png
-    ├── 01_preprocessed_tensor.png
-    ├── 02_tokenized_prompt.json
-    ├── 02_formatted_prompt.txt
-    ├── 03_raw_generated_text.txt
-    ├── 04_layout_predictions.csv
-    ├── 04_label_distribution.png
-    └── 05_result_with_boxes.jpg
-```
+Open the boxed overlay and check these specific things:
 
-`<YYYY-MM-DD>` is the date the notebook runs. The final validation cell asserts all of the above files exist and are non-empty.
+![Detected regions over page 1](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg)
+
+- **Box tightness on Figure 1** (`image [168, 601, 825, 802]`): does the box hug the diagram, or
+  bleed into the caption/abstract? Slop here pollutes the cropped `images/0.jpg`.
+- **The "Abstract" heading is labeled `title`** (`[449, 273, 550, 291]`). Arguably it is a section
+  heading, not a title — a sign the label taxonomy is coarse. On papers with real numbered section
+  headings, watch whether they get `title`, `text`, or something else.
+- **Header box** `[123, 29, 325, 75]` contains "Baidu百度" — mixed Latin + CJK glyphs read correctly
+  inside a logo-style lockup, a harder case than body text.
+- **Coordinate mapping**: boxes are on a 0–1000 normalized grid and are rescaled onto the 2481 ×
+  3508 page for drawing. If a box ever looks systematically offset, suspect this rescaling step, not
+  the model.
+- **Stray token in the stream**: the caption line ends with a literal `<｜end▁of▁sentence｜>` inside
+  the decoded text. Harmless here (stripped downstream), but worth remembering when parsing raw
+  output with anything other than the reference regex.
+
+## Artifact guide (what each file teaches)
+
+| Artifact | Learning value |
+|---|---|
+| [`first_1_base/single_base/result.md`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md) | The end product. Note the markdown image substitution pointing to `images/0.jpg` — figures become crops, not text. |
+| [`first_1_base/single_base/result_with_boxes.jpg`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg) | Grounding quality at a glance; check figure-box tightness and the "Abstract" label. |
+| [`intermediate/00_input_page.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png) | What 300 DPI born-digital input looks like before any squeezing. |
+| [`intermediate/01_preprocessed_global_view.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png) | The letterbox reality of BASE mode — compare with the input to feel the resolution loss. |
+| [`intermediate/02_tokenized_prompt.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json) | Proof the run is 273/277 visual tokens; where the 16×16 query grid shows up concretely. |
+| [`intermediate/02_formatted_prompt.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_formatted_prompt.txt) | The full "instruction": `<image>document parsing.` — 24 bytes. |
+| [`intermediate/03_raw_generated_text.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt) | The single source of truth: label + box + content stream. Read this first when anything downstream looks wrong. |
+| [`intermediate/04_layout_predictions.csv`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv) | The stream as data: 8 rows × (label, box, x1–y2). The join point for any quantitative follow-up. |
+| [`intermediate/04_label_distribution.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png) | Label histogram; on multi-page runs this is where class imbalance would surface. |
+| [`intermediate/05_result_with_boxes.jpg`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg) | Notebook-rebuilt boxed view; matching `result_with_boxes.jpg` confirms the replication of the pipeline is faithful. |
+| [`run.log`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/run.log) | Execution trace: RTX 3090, bfloat16, artifact sizes; where to look when an artifact is missing or empty. |
