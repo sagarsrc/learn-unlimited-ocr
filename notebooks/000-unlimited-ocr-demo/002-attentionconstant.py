@@ -642,7 +642,7 @@ class AttentionReceptiveFieldPlotter:
         Path
             Path to the saved PNG.
         """
-        out_path = self.config.out_dir / "plots" / "rswa_receptive_field.png"
+        out_path = self.config.out_dir / "plots" / "attention_receptive_field.png"
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Use a clipped window so the figure stays readable.
@@ -914,13 +914,13 @@ class ResultWriter:
         Dict[str, Path]
             Paths to the written artifacts.
         """
-        trace_path = self.results_dir / "memory_trace.json"
+        trace_path = self.results_dir / "decoder_memory_trace.json"
         trace_path.write_text(json.dumps(self.trace, indent=2), encoding="utf-8")
 
         input_length = int(self.trace[0]["seq_len"]) if self.trace else 0
         generated_ids = self.output_ids[0, input_length:]
         text = self.tokenizer.decode(generated_ids, skip_special_tokens=False)
-        text_path = self.results_dir / "generated_output.txt"
+        text_path = self.results_dir / "generated_text.txt"
         text_path.write_text(text, encoding="utf-8")
 
         summary = {
@@ -937,7 +937,7 @@ class ResultWriter:
             "generated_length": int(generated_ids.shape[0]),
             "trace_steps": len(self.trace),
         }
-        summary_path = self.results_dir / "summary.json"
+        summary_path = self.results_dir / "run_summary.json"
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
         artifacts = {
@@ -1082,7 +1082,7 @@ class MemoryPlotter:
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        path = self._save("memory_trace.png")
+        path = self._save("decoder_memory_allocated_peak.png")
         plt.tight_layout()
         plt.savefig(path, dpi=200)
         plt.close(fig)
@@ -1125,7 +1125,7 @@ class MemoryPlotter:
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        path = self._save("cache_theory.png")
+        path = self._save("kv_cache_theory.png")
         plt.tight_layout()
         plt.savefig(path, dpi=200)
         plt.close(fig)
@@ -1234,9 +1234,9 @@ logger.info("Artifacts:")
 for name, path in RESULT_ARTIFACTS.items():
     logger.info("  %s: %s", name, path)
 logger.info("Plots:")
-logger.info("  memory_trace: %s", memory_trace_path)
-logger.info("  cache_theory: %s", cache_theory_path)
-logger.info("  receptive_field: %s", receptive_field_path)
+logger.info("  decoder_memory_allocated_peak: %s", memory_trace_path)
+logger.info("  kv_cache_theory: %s", cache_theory_path)
+logger.info("  attention_receptive_field: %s", receptive_field_path)
 logger.info("\nKey paper insight:")
 logger.info(
     "R-SWA keeps every visual/reference token (L_m) and only the latest %s "
