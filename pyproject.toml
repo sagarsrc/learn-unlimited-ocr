@@ -1,0 +1,61 @@
+[project]
+name = "learn-unlimited-ocr"
+version = "0.1.0"
+description = "Notebook experiments with baidu/Unlimited-OCR"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    { name = "Sagar", email = "sagar@example.com" },
+]
+keywords = ["ocr", "unlimited-ocr", "document-parsing", "transformers"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch==2.6.0+cu124",
+    "torchvision==0.21.0+cu124",
+    "transformers==4.57.1",
+    "accelerate>=1.14.0",
+    "einops>=0.8.2",
+    "addict>=2.4.0",
+    "easydict>=1.13",
+    "pymupdf>=1.28.0",
+    "psutil>=7.2.2",
+    "pillow>=12.3.0",
+    "matplotlib>=3.11.1",
+    "black>=26.5.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=26.5.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/sagarsrc/learn-unlimited-ocr"
+Repository = "https://github.com/sagarsrc/learn-unlimited-ocr"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
