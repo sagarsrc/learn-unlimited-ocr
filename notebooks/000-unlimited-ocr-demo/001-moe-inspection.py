@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np

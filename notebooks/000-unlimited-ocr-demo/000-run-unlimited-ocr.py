@@ -9,7 +9,7 @@ import requests
 import textwrap
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import Any, Callable, List, Sequence, Tuple
 
 import fitz
 import matplotlib.pyplot as plt
