@@ -1,6 +1,7 @@
 # %%
 import datetime
 import logging
+import sys
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -14,6 +15,16 @@ import torch
 import torch.nn.functional as F
 from IPython.display import Image as IPImage, display
 from transformers import AutoModel, AutoTokenizer
+
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent
+        if "__file__" in dir()
+        else Path.cwd() / "notebooks" / "000-unlimited-ocr-demo"
+    ),
+)
+from showcase_utils import Showcase  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -72,6 +83,7 @@ CONFIG.out_dir.mkdir(parents=True, exist_ok=True)
 _moe_file_handler = logging.FileHandler(CONFIG.out_dir / "run.log", mode="w")
 _moe_file_handler.setFormatter(logging.Formatter("%(message)s"))
 logging.getLogger().addHandler(_moe_file_handler)
+showcase = Showcase(CONFIG.out_dir, logger)
 logger.info("Inputs: CONFIG=%s", CONFIG)
 assert CONFIG.out_dir.exists(), "Output directory was not created"
 
@@ -413,6 +425,149 @@ logger.info("Outputs: tokens=%s", moe_inspector.tokens)
 
 
 # %% [markdown]
+# ## Showcase: Input Tokens
+# Save the tokenized sample input (ids and tokens), log its shape, and display it.
+
+
+# %%
+class InputTokenShowcase:
+    """Save and display the tokenized sample input.
+
+    Parameters
+    ----------
+    config : Config
+        Required. Global configuration.
+    tokenizer : AutoTokenizer
+        Required. Loaded tokenizer.
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, config: Config, tokenizer: AutoTokenizer, showcase: Showcase):
+        """Initialize with config, tokenizer, and showcase helper.
+
+        Parameters
+        ----------
+        config : Config
+            Required. Global configuration.
+        tokenizer : AutoTokenizer
+            Required. Loaded tokenizer.
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.config = config
+        self.tokenizer = tokenizer
+        self.showcase = showcase
+
+    def run(self) -> Dict[str, Any]:
+        """Tokenize the sample text and save ids plus tokens.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Saved token payload.
+        """
+        inputs = self.tokenizer(self.config.sample_text, return_tensors="pt")
+        input_ids = inputs["input_ids"]
+        self.showcase.log_summary("input_ids", input_ids)
+        payload = {
+            "sample_text": self.config.sample_text,
+            "input_ids_shape": list(input_ids.shape),
+            "input_ids": input_ids[0].tolist(),
+            "tokens": self.tokenizer.convert_ids_to_tokens(input_ids[0]),
+        }
+        self.showcase.save_json(payload, "00_input_tokens.json")
+        logger.info("[InputTokenShowcase] input_ids shape=%s", tuple(input_ids.shape))
+        return payload
+
+
+input_token_showcase = InputTokenShowcase(CONFIG, tokenizer, showcase)
+input_tokens = input_token_showcase.run()
+logger.info("Outputs: input_tokens keys=%s", list(input_tokens.keys()))
+assert len(input_tokens["input_ids"]) == len(input_tokens["tokens"])
+
+
+# %% [markdown]
+# ## Showcase: Top-K Routing Sample
+# Save the captured top-k expert indices and weights for the target layer as a
+# table, and log the tensor shapes for every layer.
+
+
+# %%
+class RoutingSampleShowcase:
+    """Save and display captured top-k routing for the target MoE layer.
+
+    Parameters
+    ----------
+    config : Config
+        Required. Global configuration.
+    inspector : MoEInspector
+        Required. Inspector with captured routing records.
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, config: Config, inspector: MoEInspector, showcase: Showcase):
+        """Initialize with config, inspector, and showcase helper.
+
+        Parameters
+        ----------
+        config : Config
+            Required. Global configuration.
+        inspector : MoEInspector
+            Required. Inspector with captured routing records.
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.config = config
+        self.inspector = inspector
+        self.showcase = showcase
+
+    def run(self) -> pd.DataFrame:
+        """Save routing shapes for all layers and a table for the target layer.
+
+        Returns
+        -------
+        pd.DataFrame
+            Per-token experts and weights for the target layer.
+        """
+        shapes = {
+            str(layer_idx): {
+                "topk_idx_shape": list(rec["topk_idx"].shape),
+                "topk_weight_shape": list(rec["topk_weight"].shape),
+                "aux_loss": rec["aux_loss"],
+            }
+            for layer_idx, rec in sorted(self.inspector.records.items())
+        }
+        self.showcase.save_json(shapes, "01_routing_shapes_all_layers.json")
+
+        rec = self.inspector.records[self.config.target_moe_layer]
+        self.showcase.log_summary("topk_idx", rec["topk_idx"])
+        self.showcase.log_summary("topk_weight", rec["topk_weight"])
+        tokens = self.inspector.tokens
+        rows = [
+            {
+                "position": pos,
+                "token": token,
+                "experts": rec["topk_idx"][pos].tolist(),
+                "weights": [round(w, 4) for w in rec["topk_weight"][pos].tolist()],
+            }
+            for pos, token in enumerate(tokens)
+        ]
+        df = pd.DataFrame(rows)
+        self.showcase.save_table(
+            df, f"01_routing_table_layer{self.config.target_moe_layer}.csv"
+        )
+        return df
+
+
+routing_sample_showcase = RoutingSampleShowcase(CONFIG, moe_inspector, showcase)
+routing_sample_df = routing_sample_showcase.run()
+logger.info("Outputs: routing_sample_df.shape=%s", routing_sample_df.shape)
+assert len(routing_sample_df) == len(moe_inspector.tokens)
+
+
+# %% [markdown]
 # ## Routing Table
 # Print a human-readable table of selected experts and weights per token.
 
@@ -590,6 +745,105 @@ assert gate_score_path.exists()
 
 
 # %% [markdown]
+# ## Showcase: Hidden State and Gate Score Matrix
+# Save the hidden state entering the target gate (shape, stats, heatmap) and
+# the full gate score matrix as a CSV with a displayed sample.
+
+
+# %%
+class GateIntermediateShowcase:
+    """Save and display the gate's hidden-state input and score matrix.
+
+    Parameters
+    ----------
+    config : Config
+        Required. Global configuration.
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, config: Config, showcase: Showcase):
+        """Initialize with config and showcase helper.
+
+        Parameters
+        ----------
+        config : Config
+            Required. Global configuration.
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.config = config
+        self.showcase = showcase
+
+    def run(self, hidden_state: torch.Tensor, scores: np.ndarray) -> None:
+        """Save hidden-state summary/heatmap and the gate score matrix.
+
+        Parameters
+        ----------
+        hidden_state : torch.Tensor
+            Required. Hidden state entering the gate, shape [1, seq, hidden].
+        scores : np.ndarray
+            Required. Softmax gate scores, shape [seq, num_experts].
+        """
+        self.showcase.log_summary("hidden_state", hidden_state)
+        hidden = hidden_state.float().squeeze(0)
+        summary = {
+            "hidden_state_shape": list(hidden_state.shape),
+            "hidden_state_dtype": str(hidden_state.dtype),
+            "mean": float(hidden.mean()),
+            "std": float(hidden.std()),
+            "min": float(hidden.min()),
+            "max": float(hidden.max()),
+        }
+        self.showcase.save_json(summary, "02_hidden_state_summary.json")
+
+        dims = min(64, hidden.shape[1])
+        fig, ax = plt.subplots(figsize=(12, 4))
+        sns.heatmap(
+            hidden[:, :dims].numpy(),
+            cmap="coolwarm",
+            center=0,
+            ax=ax,
+            cbar_kws={"label": "activation"},
+        )
+        ax.set_xlabel(f"hidden dim (first {dims})")
+        ax.set_ylabel("token position")
+        ax.set_title(
+            f"Hidden state entering gate (layer {self.config.target_moe_layer})"
+        )
+        self.showcase.save_figure(fig, "02_hidden_state_heatmap.png")
+
+        self.showcase.log_summary("gate_scores", scores)
+        score_df = pd.DataFrame(
+            scores, columns=[f"E{i}" for i in range(self.config.num_experts)]
+        )
+        self.showcase.save_table(score_df.round(6), "02_gate_scores.csv", inline=False)
+        top5 = pd.DataFrame(
+            [
+                {
+                    "token_position": pos,
+                    "top5_experts": np.argsort(row)[-5:][::-1].tolist(),
+                    "top5_scores": [
+                        round(float(row[i]), 4) for i in np.argsort(row)[-5:][::-1]
+                    ],
+                }
+                for pos, row in enumerate(scores)
+            ]
+        )
+        self.showcase.save_table(top5, "02_gate_scores_top5.csv")
+        logger.info(
+            "[GateIntermediateShowcase] hidden=%s scores=%s",
+            tuple(hidden_state.shape),
+            scores.shape,
+        )
+
+
+gate_intermediate_showcase = GateIntermediateShowcase(CONFIG, showcase)
+gate_intermediate_showcase.run(gate_score_plot._hidden_state, gate_scores)
+logger.info("Outputs: hidden state and gate score intermediates saved")
+
+
+# %% [markdown]
 # ## Top-K Selection Matrix
 # Build a sparse binary matrix showing which experts are selected for each token
 # across all MoE layers.
@@ -675,6 +929,18 @@ logger.info("Outputs: topk_matrix.shape=%s path=%s", topk_matrix.shape, topk_pat
 assert topk_matrix.shape == (len(moe_inspector.tokens), CONFIG.num_experts)
 assert set(np.unique(topk_matrix)).issubset({0, 1})
 assert topk_path.exists()
+
+# Showcase: save the binary selection matrix as a table.
+showcase.log_summary("topk_matrix", topk_matrix)
+topk_df = pd.DataFrame(
+    topk_matrix,
+    index=[f"pos_{i}" for i in range(topk_matrix.shape[0])],
+    columns=[f"E{i}" for i in range(CONFIG.num_experts)],
+)
+topk_matrix_path = showcase.dir / "03_topk_selection_matrix.csv"
+topk_df.to_csv(topk_matrix_path)
+assert topk_matrix_path.exists() and topk_matrix_path.stat().st_size > 0
+logger.info("[Showcase] Saved %s", topk_matrix_path)
 
 
 # %% [markdown]
@@ -765,6 +1031,18 @@ logger.info(
 assert expert_load.shape == (len(routing_records), CONFIG.num_experts)
 assert expert_load_path.exists()
 
+# Showcase: save the per-layer expert load matrix as a table.
+showcase.log_summary("expert_load", expert_load)
+load_df = pd.DataFrame(
+    expert_load.round(4),
+    index=[f"layer_{i}" for i in sorted(routing_records.keys())],
+    columns=[f"E{i}" for i in range(CONFIG.num_experts)],
+)
+load_path = showcase.dir / "04_expert_load.csv"
+load_df.to_csv(load_path)
+assert load_path.exists() and load_path.stat().st_size > 0
+logger.info("[Showcase] Saved %s", load_path)
+
 
 # %% [markdown]
 # ## Aggregate Expert Usage
@@ -854,6 +1132,9 @@ aggregate_path = aggregate_usage_plot.plot(aggregate_df)
 logger.info("Outputs: aggregate_path=%s", aggregate_path)
 assert aggregate_path.exists()
 
+# Showcase: save and display the aggregate usage table.
+showcase.save_table(aggregate_df.round(4), "05_aggregate_usage.csv")
+
 
 # %% [markdown]
 # ## Final Validation
@@ -871,6 +1152,23 @@ for fname in (
     assert path.exists(), f"Missing output: {path}"
     logger.info("[Validation] Found %s", path)
 logger.info("[Validation] All four PNGs exist")
+
+for fname in (
+    "00_input_tokens.json",
+    "01_routing_shapes_all_layers.json",
+    f"01_routing_table_layer{CONFIG.target_moe_layer}.csv",
+    "02_hidden_state_summary.json",
+    "02_hidden_state_heatmap.png",
+    "02_gate_scores.csv",
+    "02_gate_scores_top5.csv",
+    "03_topk_selection_matrix.csv",
+    "04_expert_load.csv",
+    "05_aggregate_usage.csv",
+):
+    path = showcase.dir / fname
+    assert path.exists() and path.stat().st_size > 0, f"Missing intermediate: {path}"
+    logger.info("[Validation] Found intermediate %s", path)
+logger.info("[Validation] All intermediate artifacts exist and are non-empty")
 
 
 # %% [markdown]

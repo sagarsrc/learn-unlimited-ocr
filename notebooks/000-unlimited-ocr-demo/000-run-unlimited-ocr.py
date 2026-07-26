@@ -1,7 +1,9 @@
 # %%
 import datetime
 import logging
+import math
 import os
+import sys
 import tempfile
 import requests
 import textwrap
@@ -11,10 +13,23 @@ from typing import List, Sequence, Tuple
 
 import fitz
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 import torch
 from IPython.display import Markdown, Image as IPImage, display
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from transformers import AutoModel, AutoTokenizer
+
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent
+        if "__file__" in dir()
+        else Path.cwd() / "notebooks" / "000-unlimited-ocr-demo"
+    ),
+)
+from showcase_utils import Showcase  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -131,18 +146,15 @@ CONFIG = Config(
     pdf_url="https://github.com/baidu/Unlimited-OCR/raw/main/Unlimited-OCR.pdf",
     pdf_cache_path=Path("inputs/Unlimited-OCR.pdf"),
     synthetic_page_count=3,
+    # Minimal committed default: one page, BASE mode only (fast dev loop).
+    # Re-enable GUNDAM / multi-page or add more pages when needed, e.g.
+    # RunConfig(name="first_4_all", max_pages=4, run_gundam=True,
+    #           run_base=True, run_multi=True).
     runs=(
         RunConfig(
-            name="first_4_all",
-            max_pages=4,
-            run_gundam=True,
-            run_base=True,
-            run_multi=True,
-        ),
-        RunConfig(
-            name="first_1_compact",
+            name="first_1_base",
             max_pages=1,
-            run_gundam=True,
+            run_gundam=False,
             run_base=True,
             run_multi=False,
         ),
@@ -595,6 +607,60 @@ visualizer.show("First page of loaded document")
 
 
 # %% [markdown]
+# ## Showcase: Input Image
+# Save the raw input page to the `intermediate/` folder, log its shape, and
+# display it inline.
+
+
+# %%
+showcase = Showcase(CONFIG.out_dir, logger)
+
+
+class InputImageShowcase:
+    """Save and display the raw input page image.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the shared showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, image_path: Path) -> Image.Image:
+        """Save and display the input page.
+
+        Parameters
+        ----------
+        image_path : Path
+            Required. Path to the input page image.
+
+        Returns
+        -------
+        Image.Image
+            Loaded RGB input image.
+        """
+        image = Image.open(image_path).convert("RGB")
+        self.showcase.save_image(image, "00_input_page.png")
+        logger.info("[InputImageShowcase] input size (W, H)=%s", image.size)
+        return image
+
+
+input_showcase = InputImageShowcase(showcase)
+input_image = input_showcase.run(page_images[0])
+logger.info("Outputs: input_image.size=%s", input_image.size)
+assert input_image.size[0] > 0 and input_image.size[1] > 0
+
+
+# %% [markdown]
 # ## Inference Runners
 # Run single-page and multi-page inference across the configured runs.
 
@@ -808,6 +874,476 @@ logger.info("Outputs: all runs complete")
 
 
 # %% [markdown]
+# ## Showcase: BASE Pipeline Intermediates
+# Replicate the BASE (non-crop) single-page pipeline step by step, using the
+# model's own dynamically loaded helpers, so every intermediate can be saved,
+# logged, and displayed: preprocessed image, tokenized prompt, raw generated
+# string, parsed layout predictions, and the boxed result image.
+
+
+# %%
+def get_model_module(model: AutoModel):
+    """Return the dynamically loaded remote-code modeling module.
+
+    Parameters
+    ----------
+    model : AutoModel
+        Required. Loaded model (its module is already in sys.modules).
+
+    Returns
+    -------
+    module
+        The loaded `modeling_unlimitedocr` module.
+    """
+    for module_name, module in sys.modules.items():
+        if module_name.endswith("modeling_unlimitedocr"):
+            return module
+    raise RuntimeError("modeling_unlimitedocr module not found in sys.modules")
+
+
+uocr = get_model_module(model)
+logger.info("Outputs: uocr module=%s", uocr.__name__)
+
+
+# %% [markdown]
+# ### Showcase: Preprocessed Image
+# BASE mode pads the page onto a square `base_image_size` canvas and normalizes
+# it to a `[3, H, W]` tensor in `[-1, 1]`.
+
+
+# %%
+class BasePreprocessor:
+    """Replicate BASE-mode (non-crop) preprocessing and showcase its outputs.
+
+    Parameters
+    ----------
+    config : Config
+        Required. Global configuration.
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, config: Config, showcase: Showcase):
+        """Initialize with config and showcase helper.
+
+        Parameters
+        ----------
+        config : Config
+            Required. Global configuration.
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.config = config
+        self.showcase = showcase
+
+    def run(self, image: Image.Image) -> torch.Tensor:
+        """Pad and normalize the page, saving both views.
+
+        Parameters
+        ----------
+        image : Image.Image
+            Required. Raw input page image.
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized image tensor of shape [3, image_size, image_size].
+        """
+        size = self.config.base_image_size
+        transform = uocr.BasicImageTransform(
+            mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), normalize=True
+        )
+        pad_color = tuple(int(x * 255) for x in transform.mean)
+        global_view = ImageOps.pad(image, (size, size), color=pad_color)
+        self.showcase.save_image(global_view, "01_preprocessed_global_view.png")
+        tensor = transform(global_view).to(self.config.dtype)
+        self.showcase.save_tensor_image(tensor, "01_preprocessed_tensor.png")
+        logger.info(
+            "[BasePreprocessor] tensor shape=%s dtype=%s",
+            tuple(tensor.shape),
+            tensor.dtype,
+        )
+        return tensor
+
+
+base_preprocessor = BasePreprocessor(CONFIG, showcase)
+image_tensor = base_preprocessor.run(input_image)
+logger.info("Outputs: image_tensor.shape=%s", tuple(image_tensor.shape))
+assert image_tensor.shape == (3, CONFIG.base_image_size, CONFIG.base_image_size)
+
+
+# %% [markdown]
+# ### Showcase: Tokenized Prompt
+# The formatted prompt is split around `<image>`; each image contributes
+# `(num_queries + 1) * num_queries + 1` visual tokens.
+
+
+# %%
+class PromptTokenizer:
+    """Replicate BASE-mode tokenization and showcase the tokenized prompt.
+
+    Parameters
+    ----------
+    config : Config
+        Required. Global configuration.
+    tokenizer : AutoTokenizer
+        Required. Loaded tokenizer.
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    IMAGE_TOKEN = "<image>"
+    BOS_ID = 0
+
+    def __init__(self, config: Config, tokenizer: AutoTokenizer, showcase: Showcase):
+        """Initialize with config, tokenizer, and showcase helper.
+
+        Parameters
+        ----------
+        config : Config
+            Required. Global configuration.
+        tokenizer : AutoTokenizer
+            Required. Loaded tokenizer.
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.config = config
+        self.tokenizer = tokenizer
+        self.showcase = showcase
+
+    def run(self, prompt: str) -> dict:
+        """Tokenize the prompt exactly as BASE mode does.
+
+        Parameters
+        ----------
+        prompt : str
+            Required. Prompt containing a single `<image>` token.
+
+        Returns
+        -------
+        dict
+            Mapping with input_ids, images_seq_mask, and counts.
+        """
+        formatted = uocr.format_messages(
+            conversations=[
+                {"role": "<|User|>", "content": prompt},
+                {"role": "<|Assistant|>", "content": ""},
+            ],
+            sft_format="plain",
+            system_prompt="",
+        )
+        text_splits = formatted.split(self.IMAGE_TOKEN)
+        assert len(text_splits) == 2, "Prompt must contain exactly one <image> token"
+
+        image_token_id = self.tokenizer.convert_tokens_to_ids(self.IMAGE_TOKEN)
+        if not isinstance(image_token_id, int) or image_token_id < 0:
+            image_token_id = 128815  # fallback used by the reference model
+
+        num_queries = math.ceil((self.config.base_image_size // 16) / 4)
+        tokenized_image = (
+            [image_token_id] * num_queries + [image_token_id]
+        ) * num_queries + [image_token_id]
+        before_ids = self.tokenizer.encode(text_splits[0], add_special_tokens=False)
+        after_ids = self.tokenizer.encode(text_splits[1], add_special_tokens=False)
+
+        input_ids = [self.BOS_ID] + before_ids + tokenized_image + after_ids
+        images_seq_mask = (
+            [False] * (1 + len(before_ids))
+            + [True] * len(tokenized_image)
+            + [False] * len(after_ids)
+        )
+        result = {
+            "formatted_prompt": formatted,
+            "image_token_id": image_token_id,
+            "num_queries_per_side": num_queries,
+            "num_tokens": len(input_ids),
+            "num_visual_tokens": len(tokenized_image),
+            "num_text_tokens": 1 + len(before_ids) + len(after_ids),
+            "input_ids": input_ids,
+            "images_seq_mask": images_seq_mask,
+        }
+        self.showcase.save_json(
+            {k: v for k, v in result.items() if k != "images_seq_mask"},
+            "02_tokenized_prompt.json",
+        )
+        self.showcase.save_text(formatted, "02_formatted_prompt.txt")
+        logger.info(
+            "[PromptTokenizer] num_tokens=%d visual=%d text=%d",
+            result["num_tokens"],
+            result["num_visual_tokens"],
+            result["num_text_tokens"],
+        )
+        return result
+
+
+prompt_tokenizer = PromptTokenizer(CONFIG, tokenizer, showcase)
+tokenized = prompt_tokenizer.run("<image>document parsing.")
+logger.info("Outputs: tokenized num_tokens=%d", tokenized["num_tokens"])
+assert tokenized["num_visual_tokens"] > 0
+assert len(tokenized["input_ids"]) == len(tokenized["images_seq_mask"])
+
+
+# %% [markdown]
+# ### Showcase: Raw Generated String
+# Generate with the same settings as `model.infer` BASE mode and keep the raw
+# decoded string, including `<|ref|>...` / `<|det|>...` special tokens.
+
+
+# %%
+class ShowcaseGenerator:
+    """Generate exactly like BASE mode and showcase the raw model string.
+
+    Parameters
+    ----------
+    config : Config
+        Required. Global configuration.
+    tokenizer : AutoTokenizer
+        Required. Loaded tokenizer.
+    model : AutoModel
+        Required. Loaded model.
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(
+        self,
+        config: Config,
+        tokenizer: AutoTokenizer,
+        model: AutoModel,
+        showcase: Showcase,
+    ):
+        """Initialize with config, tokenizer, model, and showcase helper.
+
+        Parameters
+        ----------
+        config : Config
+            Required. Global configuration.
+        tokenizer : AutoTokenizer
+            Required. Loaded tokenizer.
+        model : AutoModel
+            Required. Loaded model.
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.config = config
+        self.tokenizer = tokenizer
+        self.model = model
+        self.showcase = showcase
+
+    def run(self, tokenized: dict, image_tensor: torch.Tensor) -> str:
+        """Run generation and save the raw decoded string.
+
+        Parameters
+        ----------
+        tokenized : dict
+            Required. Output of PromptTokenizer.run.
+        image_tensor : torch.Tensor
+            Required. Preprocessed image tensor.
+
+        Returns
+        -------
+        str
+            Raw decoded model output including special tokens.
+        """
+        input_ids_t = torch.LongTensor(tokenized["input_ids"]).unsqueeze(0).cuda()
+        seq_mask = (
+            torch.tensor(tokenized["images_seq_mask"], dtype=torch.bool)
+            .unsqueeze(0)
+            .cuda()
+        )
+        images_ori = image_tensor.unsqueeze(0).cuda()
+        images_crop = torch.zeros(
+            (1, 3, self.config.base_size, self.config.base_size),
+            dtype=self.config.dtype,
+        ).cuda()
+        spatial_crop = torch.tensor([[1, 1]], dtype=torch.long)
+
+        orig_sw = getattr(self.model.config, "sliding_window_size", None) or getattr(
+            self.model.config, "sliding_window", None
+        )
+        self.model.config._ring_window = orig_sw
+        self.model.config.sliding_window = None
+        try:
+            with torch.autocast("cuda", dtype=self.config.dtype), torch.no_grad():
+                output_ids = self.model.generate(
+                    input_ids=input_ids_t,
+                    images=[(images_crop, images_ori)],
+                    images_seq_mask=seq_mask,
+                    images_spatial_crop=spatial_crop,
+                    do_sample=False,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    max_length=self.config.max_length,
+                    use_cache=True,
+                    logits_processor=[
+                        uocr.SlidingWindowNoRepeatNgramProcessor(
+                            self.config.no_repeat_ngram_size,
+                            self.config.base_ngram_window,
+                        )
+                    ],
+                )
+        finally:
+            self.model.config.sliding_window = orig_sw
+
+        generated_ids = output_ids[0, input_ids_t.shape[1] :]
+        self.showcase.log_summary("generated_ids", generated_ids)
+        raw_text = self.tokenizer.decode(generated_ids, skip_special_tokens=False)
+        self.showcase.save_text(
+            raw_text, "03_raw_generated_text.txt", preview_chars=2000
+        )
+        return raw_text
+
+
+showcase_generator = ShowcaseGenerator(CONFIG, tokenizer, model, showcase)
+raw_output = showcase_generator.run(tokenized, image_tensor)
+logger.info("Outputs: raw_output len=%d", len(raw_output))
+assert len(raw_output) > 0
+assert "<|det|>" in raw_output, "Expected grounding dets in the raw output"
+
+
+# %% [markdown]
+# ### Showcase: Parsed Layout Predictions
+# Parse the `<|ref|>label<|/ref|><|det|>[[x1, y1, x2, y2]]<|/det|>` spans into a
+# table of (label, box coordinates) and plot the label distribution.
+
+
+# %%
+class LayoutPredictionParser:
+    """Parse grounding spans from the raw string into a prediction table.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, raw_text: str) -> Tuple[pd.DataFrame, list]:
+        """Parse layout predictions and save a table plus a label plot.
+
+        Parameters
+        ----------
+        raw_text : str
+            Required. Raw decoded model output.
+
+        Returns
+        -------
+        Tuple[pd.DataFrame, list]
+            Prediction dataframe and the raw regex matches.
+        """
+        matches, _, _ = uocr.re_match(raw_text)
+        rows = []
+        for _full, label, box in matches:
+            try:
+                coords = eval(box)  # noqa: S307 - model's own output format
+                if coords and isinstance(coords[0], (int, float)):
+                    coords = [coords]
+            except Exception:  # noqa: BLE001
+                coords = []
+            for coord in coords or [[]]:
+                rows.append(
+                    {
+                        "label": label.strip(),
+                        "box": box,
+                        "x1": coord[0] if len(coord) == 4 else None,
+                        "y1": coord[1] if len(coord) == 4 else None,
+                        "x2": coord[2] if len(coord) == 4 else None,
+                        "y2": coord[3] if len(coord) == 4 else None,
+                    }
+                )
+        df = pd.DataFrame(rows, columns=["label", "box", "x1", "y1", "x2", "y2"])
+        self.showcase.save_table(df, "04_layout_predictions.csv")
+
+        if not df.empty:
+            fig, ax = plt.subplots(figsize=(8, 4))
+            sns.countplot(
+                data=df,
+                y="label",
+                order=df["label"].value_counts().index,
+                color="steelblue",
+                ax=ax,
+            )
+            ax.set_title("Layout label distribution (BASE mode, page 1)")
+            ax.set_xlabel("count")
+            self.showcase.save_figure(fig, "04_label_distribution.png")
+        logger.info(
+            "[LayoutPredictionParser] parsed %d boxes across %d labels",
+            len(df),
+            df["label"].nunique() if not df.empty else 0,
+        )
+        return df, matches
+
+
+layout_parser = LayoutPredictionParser(showcase)
+layout_df, layout_matches = layout_parser.run(raw_output)
+logger.info("Outputs: layout_df.shape=%s", layout_df.shape)
+assert len(layout_df) > 0
+
+
+# %% [markdown]
+# ### Showcase: Boxed Result Image
+# Draw the parsed boxes on the input page, mirroring `result_with_boxes.jpg`.
+
+
+# %%
+class BoxedResultShowcase:
+    """Render parsed layout boxes onto the input page.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, image: Image.Image, matches: list) -> Path:
+        """Draw boxes and save the boxed result image.
+
+        Parameters
+        ----------
+        image : Image.Image
+            Required. Raw input page image.
+        matches : list
+            Required. Regex matches from the layout parser.
+
+        Returns
+        -------
+        Path
+            Path to the boxed result image.
+        """
+        result = uocr.process_image_with_refs(
+            image.copy(), matches, str(self.showcase.dir)
+        )
+        path = self.showcase._save("05_result_with_boxes.jpg", lambda p: result.save(p))
+        display(IPImage(filename=str(path)))
+        logger.info("[BoxedResultShowcase] saved %s", path)
+        return path
+
+
+boxed_showcase = BoxedResultShowcase(showcase)
+boxed_path = boxed_showcase.run(input_image, layout_matches)
+logger.info("Outputs: boxed_path=%s", boxed_path)
+assert boxed_path.exists()
+
+
+# %% [markdown]
 # ## Inspect Outputs
 # List saved result files and preview text contents.
 
@@ -870,6 +1406,22 @@ for run in CONFIG.runs:
     if run.run_multi:
         assert (run_dir / "multi_page").exists()
 logger.info("[Validation] All expected artifacts exist")
+
+for fname in (
+    "00_input_page.png",
+    "01_preprocessed_global_view.png",
+    "01_preprocessed_tensor.png",
+    "02_tokenized_prompt.json",
+    "02_formatted_prompt.txt",
+    "03_raw_generated_text.txt",
+    "04_layout_predictions.csv",
+    "04_label_distribution.png",
+    "05_result_with_boxes.jpg",
+):
+    path = CONFIG.out_dir / "intermediate" / fname
+    assert path.exists() and path.stat().st_size > 0, f"Missing intermediate: {path}"
+    logger.info("[Validation] Found intermediate %s", path)
+logger.info("[Validation] All intermediate artifacts exist and are non-empty")
 
 
 # %%

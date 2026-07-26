@@ -18,6 +18,7 @@ import gc
 import json
 import logging
 import math
+import sys
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -28,12 +29,23 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import requests
+import seaborn as sns
 import torch
 from IPython.display import Image as IPImage, display
 from matplotlib.colors import ListedColormap
 from PIL import Image, ImageOps
 from torchvision import transforms
 from transformers import AutoModel, AutoTokenizer
+
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent
+        if "__file__" in dir()
+        else Path.cwd() / "notebooks" / "000-unlimited-ocr-demo"
+    ),
+)
+from showcase_utils import Showcase  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -112,6 +124,7 @@ CONFIG.out_dir.mkdir(parents=True, exist_ok=True)
 _file_handler = logging.FileHandler(CONFIG.out_dir / "run.log", mode="w")
 _file_handler.setFormatter(logging.Formatter("%(message)s"))
 logging.getLogger().addHandler(_file_handler)
+showcase = Showcase(CONFIG.out_dir, logger)
 logger.info(
     "Config: out_dir=%s pdf_url=%s max_pages=%s",
     CONFIG.out_dir,
@@ -368,6 +381,56 @@ for p in page_paths:
 
 
 # %% [markdown]
+# ## Showcase: Input Page Image
+# Save the first rasterized page to `intermediate/`, log its shape, and display it.
+
+
+# %%
+class InputPageShowcase:
+    """Save and display the first input page image.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, image_path: Path) -> Image.Image:
+        """Save and display the input page.
+
+        Parameters
+        ----------
+        image_path : Path
+            Required. Path to the rasterized page.
+
+        Returns
+        -------
+        Image.Image
+            Loaded RGB image.
+        """
+        image = Image.open(image_path).convert("RGB")
+        self.showcase.save_image(image, "00_input_page.png")
+        logger.info("[InputPageShowcase] input size (W, H)=%s", image.size)
+        return image
+
+
+input_page_showcase = InputPageShowcase(showcase)
+input_page_image = input_page_showcase.run(page_paths[0])
+logger.info("Outputs: input_page_image.size=%s", input_page_image.size)
+assert input_page_image.size[0] > 0
+
+
+# %% [markdown]
 # ## Build Multi-page Model Inputs
 # Replicate the non-crop multi-page preprocessing used by `model.infer_multi`.
 # The prompt contains a single `<image>` token; all pages' visual tokens are
@@ -602,6 +665,9 @@ TOKEN_BUDGET = budget_inspector.inspect()
 logger.info("Outputs: TOKEN_BUDGET=%s", TOKEN_BUDGET)
 assert TOKEN_BUDGET["recent_window"] > 0, "sliding_window must be positive for R-SWA"
 
+# Showcase: save the token budget as JSON and display it.
+showcase.save_json(TOKEN_BUDGET, "01_token_budget.json")
+
 
 # %% [markdown]
 # ## Visualize the R-SWA Receptive Field
@@ -671,6 +737,9 @@ class AttentionReceptiveFieldPlotter:
             col_end = ref_display + end_gen
             mask[t, col_start:col_end] = 2
 
+        # stash the mask for the showcase cell
+        self.last_mask = mask
+
         # custom colors: light gray, green, blue
         cmap = ListedColormap(["#e8e8e8", "#2ecc71", "#3498db"])
 
@@ -728,6 +797,70 @@ receptive_field_path = field_plotter.plot(
 )
 logger.info("Outputs: receptive_field_path=%s", receptive_field_path)
 assert receptive_field_path.exists()
+
+
+# %% [markdown]
+# ## Showcase: Receptive-Field Mask
+# Save the raw R-SWA attention mask (`.npy`), log its shape, and render a
+# Seaborn heatmap of it at 300 DPI.
+
+
+# %%
+class ReceptiveFieldShowcase:
+    """Save and display the raw R-SWA receptive-field mask.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, mask: np.ndarray) -> Path:
+        """Save the mask array and a Seaborn heatmap of it.
+
+        Parameters
+        ----------
+        mask : np.ndarray
+            Required. Mask with 0=forgotten, 1=reference, 2=recent.
+
+        Returns
+        -------
+        Path
+            Path to the saved heatmap.
+        """
+        self.showcase.log_summary("receptive_field_mask", mask)
+        npy_path = self.showcase.dir / "02_receptive_field_mask.npy"
+        np.save(npy_path, mask)
+        assert npy_path.exists() and npy_path.stat().st_size > 0
+        logger.info("[Showcase] Saved %s", npy_path)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.heatmap(
+            mask,
+            cmap=sns.color_palette(["#e8e8e8", "#2ecc71", "#3498db"]),
+            cbar=False,
+            ax=ax,
+        )
+        ax.set_xlabel("Key position (token index)")
+        ax.set_ylabel("Decode query step (token index)")
+        ax.set_title("R-SWA receptive-field mask (0=forgotten, 1=reference, 2=recent)")
+        return self.showcase.save_figure(fig, "02_receptive_field_mask_heatmap.png")
+
+
+receptive_field_showcase = ReceptiveFieldShowcase(showcase)
+rf_heatmap_path = receptive_field_showcase.run(field_plotter.last_mask)
+logger.info("Outputs: rf_heatmap_path=%s", rf_heatmap_path)
+assert rf_heatmap_path.exists()
 
 
 # %% [markdown]
@@ -857,6 +990,79 @@ assert (
 
 
 # %% [markdown]
+# ## Showcase: Memory Trace
+# Log the trace array shape and save a sample (first/last steps) plus a 300-DPI
+# Seaborn line plot of allocated memory per forward step.
+
+
+# %%
+class MemoryTraceShowcase:
+    """Save and display the per-step memory trace.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, trace: List[Dict[str, float]], baseline_mb: float) -> None:
+        """Save trace sample JSON and a Seaborn line plot.
+
+        Parameters
+        ----------
+        trace : List[Dict[str, float]]
+            Required. Memory trace from the profiler.
+        baseline_mb : float
+            Required. Allocated memory before generation started.
+        """
+        allocated = np.array([r["allocated_mb"] for r in trace])
+        peak = np.array([r["peak_mb"] for r in trace])
+        self.showcase.log_summary("allocated_mb", allocated)
+        sample = {
+            "num_steps": len(trace),
+            "allocated_mb_shape": list(allocated.shape),
+            "first_steps": trace[:3],
+            "last_steps": trace[-3:],
+        }
+        self.showcase.save_json(sample, "03_memory_trace_sample.json")
+
+        steps = [r["step"] for r in trace]
+        fig, ax = plt.subplots(figsize=(10, 4))
+        sns.lineplot(
+            x=steps,
+            y=allocated - baseline_mb,
+            label="allocated above baseline",
+            ax=ax,
+        )
+        sns.lineplot(
+            x=steps,
+            y=peak - baseline_mb,
+            label="peak above baseline",
+            alpha=0.7,
+            ax=ax,
+        )
+        ax.set_xlabel("Forward step (0 = prefill)")
+        ax.set_ylabel("MB above baseline")
+        ax.set_title("Per-step GPU memory trace (Seaborn showcase)")
+        self.showcase.save_figure(fig, "03_memory_trace_seaborn.png")
+
+
+memory_trace_showcase = MemoryTraceShowcase(showcase)
+memory_trace_showcase.run(MEMORY_TRACE, profiler._baseline_mb)
+logger.info("Outputs: memory trace showcase saved")
+
+
+# %% [markdown]
 # ## Save Trace and Decode Output
 # Persist the raw measurements and the model output so the notebook can be
 # inspected later without re-running generation.
@@ -959,6 +1165,65 @@ RESULT_ARTIFACTS = result_writer.save()
 logger.info("Outputs: RESULT_ARTIFACTS=%s", RESULT_ARTIFACTS)
 for p in RESULT_ARTIFACTS.values():
     assert p.exists(), f"Missing artifact: {p}"
+
+
+# %% [markdown]
+# ## Showcase: Generated Text Snippet
+# Save a snippet of the raw generated text (with special tokens) and display it.
+
+
+# %%
+class GeneratedTextShowcase:
+    """Save and display a snippet of the generated text.
+
+    Parameters
+    ----------
+    showcase : Showcase
+        Required. Shared save/log/display helper.
+    """
+
+    def __init__(self, showcase: Showcase):
+        """Initialize with the showcase helper.
+
+        Parameters
+        ----------
+        showcase : Showcase
+            Required. Shared save/log/display helper.
+        """
+        self.showcase = showcase
+
+    def run(self, text_path: Path, snippet_chars: int = 1000) -> str:
+        """Save the first characters of the generated text as a snippet.
+
+        Parameters
+        ----------
+        text_path : Path
+            Required. Path to the full generated text artifact.
+        snippet_chars : int
+            Optional. Number of characters to keep. Defaults to 1000.
+
+        Returns
+        -------
+        str
+            The saved snippet.
+        """
+        full_text = text_path.read_text(encoding="utf-8")
+        snippet = full_text[:snippet_chars]
+        self.showcase.save_text(
+            snippet, "04_generated_text_snippet.txt", preview_chars=snippet_chars
+        )
+        logger.info(
+            "[GeneratedTextShowcase] full=%d chars snippet=%d chars",
+            len(full_text),
+            len(snippet),
+        )
+        return snippet
+
+
+generated_text_showcase = GeneratedTextShowcase(showcase)
+generated_snippet = generated_text_showcase.run(RESULT_ARTIFACTS["text"])
+logger.info("Outputs: generated_snippet len=%d", len(generated_snippet))
+assert len(generated_snippet) > 0
 
 
 # %% [markdown]
@@ -1217,6 +1482,27 @@ logger.info("Outputs: VALIDATION_STATS=%s", VALIDATION_STATS)
 assert VALIDATION_STATS[
     "passed"
 ], f"Memory drifted {VALIDATION_STATS['drift_mb']:.1f} MB; expected constant KV cache"
+
+
+# %% [markdown]
+# ## Validate Intermediate Artifacts
+# Verify that every showcase artifact was saved and is non-empty.
+
+
+# %%
+for fname in (
+    "00_input_page.png",
+    "01_token_budget.json",
+    "02_receptive_field_mask.npy",
+    "02_receptive_field_mask_heatmap.png",
+    "03_memory_trace_sample.json",
+    "03_memory_trace_seaborn.png",
+    "04_generated_text_snippet.txt",
+):
+    path = showcase.dir / fname
+    assert path.exists() and path.stat().st_size > 0, f"Missing intermediate: {path}"
+    logger.info("[Validation] Found intermediate %s", path)
+logger.info("[Validation] All intermediate artifacts exist and are non-empty")
 
 
 # %% [markdown]
