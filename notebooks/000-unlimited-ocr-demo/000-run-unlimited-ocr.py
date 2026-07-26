@@ -157,6 +157,13 @@ CONFIG = Config(
     multi_ngram_window=1024,
     sample_dpi=300,
 )
+
+# Persist logs alongside outputs for this run.
+CONFIG.out_dir.mkdir(parents=True, exist_ok=True)
+_file_handler = logging.FileHandler(CONFIG.out_dir / "run.log", mode="w")
+_file_handler.setFormatter(logging.Formatter("%(message)s"))
+logging.getLogger().addHandler(_file_handler)
+
 logger.info(
     "Config: source=%s pdf_url=%s runs=%s",
     CONFIG.source,

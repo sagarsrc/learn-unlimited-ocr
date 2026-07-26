@@ -68,6 +68,9 @@ CONFIG = Config(
     top_k=6,
 )
 CONFIG.out_dir.mkdir(parents=True, exist_ok=True)
+_moe_file_handler = logging.FileHandler(CONFIG.out_dir / "run.log", mode="w")
+_moe_file_handler.setFormatter(logging.Formatter("%(message)s"))
+logging.getLogger().addHandler(_moe_file_handler)
 logger.info("Inputs: CONFIG=%s", CONFIG)
 assert CONFIG.out_dir.exists(), "Output directory was not created"
 
