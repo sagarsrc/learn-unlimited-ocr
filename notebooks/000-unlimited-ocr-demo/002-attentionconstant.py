@@ -107,6 +107,10 @@ CONFIG = Config(
     max_length=2048,
     no_repeat_ngram_size=5,
 )
+CONFIG.out_dir.mkdir(parents=True, exist_ok=True)
+_file_handler = logging.FileHandler(CONFIG.out_dir / "run.log", mode="w")
+_file_handler.setFormatter(logging.Formatter("%(message)s"))
+logging.getLogger().addHandler(_file_handler)
 logger.info(
     "Config: out_dir=%s pdf_url=%s max_pages=%s",
     CONFIG.out_dir,
