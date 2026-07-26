@@ -118,6 +118,8 @@ again from the token representation they receive.
 
 ## MoE refresher, question-answer style
 
+For a slower, standalone explanation, read [`moe-refresher.md`](moe-refresher.md).
+
 **Q: Is this router like LiteLLM routing a request to one model?**  
 No. LiteLLM routes one whole request to one model endpoint. MoE routes one token, inside one layer,
 to a few small FFN subnetworks.
