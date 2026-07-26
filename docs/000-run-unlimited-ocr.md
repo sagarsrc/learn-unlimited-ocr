@@ -1,6 +1,6 @@
 # Run the `000-run-unlimited-ocr` notebook
 
-Notebook: `notebooks/000-unlimited-ocr-demo/000-run-unlimited-ocr.py`
+Notebook: `notebooks/000-unlimited-ocr-demo/notebooks-py/000-run-unlimited-ocr.py`
 
 This notebook loads `baidu/Unlimited-OCR` through `transformers`, renders a test document, and runs local single-page / multi-page inference. It also replicates the BASE-mode pipeline step-by-step so every intermediate artifact can be inspected.
 
@@ -43,7 +43,7 @@ Run from the repo root so relative paths resolve:
 cd /workspace/learn-unlimited-ocr
 source .venv/bin/activate
 export CUDA_VISIBLE_DEVICES=0
-python notebooks/000-unlimited-ocr-demo/000-run-unlimited-ocr.py
+python notebooks/000-unlimited-ocr-demo/notebooks-py/000-run-unlimited-ocr.py
 ```
 
 The `.py` file uses `# %%` cells and is runnable as a script.

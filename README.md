@@ -14,7 +14,7 @@ uv sync
 
 ```bash
 source .venv/bin/activate
-python notebooks/000-unlimited-ocr-demo/000-run-unlimited-ocr.py
+python notebooks/000-unlimited-ocr-demo/notebooks-py/000-run-unlimited-ocr.py
 ```
 
 The notebook is configurable via `CONFIG` at the top:

@@ -1,6 +1,6 @@
 # 001-moe-inspection: Real MoE routing inspection for Unlimited-OCR
 
-Notebook: `notebooks/000-unlimited-ocr-demo/001-moe-inspection.py`
+Notebook: `notebooks/000-unlimited-ocr-demo/notebooks-py/001-moe-inspection.py`
 
 This notebook inspects the real Mixture-of-Experts (MoE) routing behavior of `baidu/Unlimited-OCR` using the actual model weights and a forward pass. It does not use hand-drawn diagrams: every plot is generated from the model's hidden states, gate weights, and routing outputs.
 
@@ -32,8 +32,8 @@ source .venv/bin/activate
 jupyter lab
 
 # Option B: convert the percent-script notebook to .ipynb and execute it
-jupytext --to notebook notebooks/000-unlimited-ocr-demo/001-moe-inspection.py
-jupyter nbconvert --to notebook --execute notebooks/000-unlimited-ocr-demo/001-moe-inspection.ipynb
+jupytext --to notebook notebooks/000-unlimited-ocr-demo/notebooks-py/001-moe-inspection.py
+jupyter nbconvert --to notebook --execute notebooks/000-unlimited-ocr-demo/notebooks-ipynb/001-moe-inspection.ipynb
 ```
 
 The notebook is a `.py` percent-script file. Running it directly with `python` is not recommended because it uses `IPython.display.Markdown` inline rendering.

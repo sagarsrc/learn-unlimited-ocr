@@ -357,7 +357,7 @@ class Config:
 CONFIG = Config(
     work_dir=Path.cwd(),
     out_dir=Path(
-        f"outputs/{datetime.datetime.now().strftime('%Y-%m-%d')}/000-unlimited-ocr-demo/002-attentionconstant"
+        f"outputs/{datetime.datetime.now().strftime('%Y-%m-%d')}/000-unlimited-ocr-demo/002-attention-constant"
     ),
     model_name="baidu/Unlimited-OCR",
     pdf_url="https://github.com/baidu/Unlimited-OCR/raw/main/Unlimited-OCR.pdf",

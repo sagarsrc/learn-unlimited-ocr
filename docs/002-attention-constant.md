@@ -1,6 +1,6 @@
-# 002-attentionconstant — Verify Unlimited-OCR decoder memory stays constant
+# 002-attention-constant — Verify Unlimited-OCR decoder memory stays constant
 
-Companion to `notebooks/000-unlimited-ocr-demo/002-attentionconstant.py`.
+Companion to `notebooks/000-unlimited-ocr-demo/notebooks-py/002-attention-constant.py`.
 
 ## Purpose
 
@@ -39,7 +39,7 @@ The notebook is a `# %%` Python script. Run it end-to-end with the activated
 venv:
 
 ```bash
-python notebooks/000-unlimited-ocr-demo/002-attentionconstant.py
+python notebooks/000-unlimited-ocr-demo/notebooks-py/002-attention-constant.py
 ```
 
 Or open it as a notebook in VS Code / Jupyter with Jupytext.
@@ -88,7 +88,7 @@ Or open it as a notebook in VS Code / Jupyter with Jupytext.
 All artifacts are written under:
 
 ```text
-outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/002-attentionconstant/
+outputs/<YYYY-MM-DD>/000-unlimited-ocr-demo/002-attention-constant/
 ```
 
 ### Final plots (`plots/`)
