@@ -12,6 +12,7 @@ from typing import List, Sequence, Tuple
 import fitz
 import matplotlib.pyplot as plt
 import torch
+from IPython.display import Markdown, Image as IPImage, display
 from PIL import Image, ImageDraw, ImageFont
 from transformers import AutoModel, AutoTokenizer
 
@@ -886,8 +887,6 @@ logger.info("Change CONFIG.runs or CONFIG.source to try other configurations")
 
 # %%
 try:
-    from IPython.display import Markdown, Image as IPImage, display
-
     for run in CONFIG.runs:
         run_dir = CONFIG.out_dir / run.name
         for mode in ("single_gundam", "single_base", "multi_page"):

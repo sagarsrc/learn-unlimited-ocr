@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import requests
 import torch
+from IPython.display import Image as IPImage, display
 from matplotlib.colors import ListedColormap
 from PIL import Image, ImageOps
 from torchvision import transforms
@@ -1256,8 +1257,6 @@ logger.info(
 
 # %%
 try:
-    from IPython.display import Image as IPImage, display
-
     for plot_path in (
         memory_trace_path,
         cache_theory_path,

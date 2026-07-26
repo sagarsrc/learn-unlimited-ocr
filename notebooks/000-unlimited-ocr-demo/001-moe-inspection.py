@@ -12,6 +12,7 @@ import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn.functional as F
+from IPython.display import Image as IPImage, display
 from transformers import AutoModel, AutoTokenizer
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -902,8 +903,6 @@ logger.info(
 
 # %%
 try:
-    from IPython.display import Image as IPImage, display
-
     for fname in (
         "01_gate_scores.png",
         "02_topk_selections.png",
