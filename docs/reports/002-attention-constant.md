@@ -1,8 +1,8 @@
 # 002 — R-SWA: decoder KV cache stays constant while output grows
 
-- Notebook: [`notebooks/000-unlimited-ocr-demo/notebooks-py/002-attention-constant.py`](../notebooks/000-unlimited-ocr-demo/notebooks-py/002-attention-constant.py)
-- Artifacts: [`outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/)
-- Input: [`inputs/Unlimited-OCR.pdf`](../inputs/Unlimited-OCR.pdf), the paper being verified and used as its own test document
+- Notebook: [`notebooks/000-unlimited-ocr-demo/notebooks-py/002-attention-constant.py`](../../notebooks/000-unlimited-ocr-demo/notebooks-py/002-attention-constant.py)
+- Artifacts: [`outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/)
+- Input: [`inputs/Unlimited-OCR.pdf`](../../inputs/Unlimited-OCR.pdf), the paper being verified and used as its own test document
 
 **Claim tested.** Unlimited-OCR's Reference Sliding Window Attention (R-SWA) bounds the decoder KV
 cache at `L_m + n` tokens — reference prefix plus recent window — independent of how many tokens `T`
@@ -79,7 +79,7 @@ is the `n` from the paper, read from the model, not assumed.
 
 ### 3.2 Token budget: the predicted bound
 
-[`01_token_budget.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/01_token_budget.json):
+[`01_token_budget.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/01_token_budget.json):
 
 ```json
 {
@@ -106,7 +106,7 @@ That is Eq. (7) with real numbers.
 
 ### 3.3 Memory trace: flat after prefill
 
-[`run_summary.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/run_summary.json) anchors the run: `input_length=551`, `generated_length=1497`, `trace_steps=1497` (1 prefill + 1,496 decode forwards). First and last entries of the full trace are in [`decoder_memory_trace.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/decoder_memory_trace.json), sampled in [`03_memory_trace_sample.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/03_memory_trace_sample.json):
+[`run_summary.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/run_summary.json) anchors the run: `input_length=551`, `generated_length=1497`, `trace_steps=1497` (1 prefill + 1,496 decode forwards). First and last entries of the full trace are in [`decoder_memory_trace.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/decoder_memory_trace.json), sampled in [`03_memory_trace_sample.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/03_memory_trace_sample.json):
 
 | step | role | seq_len | allocated MB | peak MB |
 |------|------|---------|--------------|---------|
@@ -124,15 +124,15 @@ mean_allocated = 6492.36 MB   std = 0.009 MB   drift = +0.031 MB   passed = True
 Total drift across ~1,370 generated tokens is **0.03 MB** — less than one KV-cache token (0.059 MB)
 of growth, i.e. noise. Per-step view:
 
-![Per-step memory trace](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/03_memory_trace_seaborn.png)
+![Per-step memory trace](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/03_memory_trace_seaborn.png)
 
 And the presentation plot with prefill separated from decode:
 
-![Decoder memory allocated/peak](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/decoder_memory_allocated_peak.png)
+![Decoder memory allocated/peak](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/decoder_memory_allocated_peak.png)
 
 ### 3.4 Theory vs measurement
 
-![KV cache theory](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/kv_cache_theory.png)
+![KV cache theory](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/kv_cache_theory.png)
 
 The blue line is full attention: `551 + T`, growing linearly to 2,048 tokens at this run's length.
 The orange line is R-SWA: `551 + min(T, 128)`, pinned at the red dashed bound of 679 after token
@@ -140,14 +140,14 @@ The orange line is R-SWA: `551 + min(T, 128)`, pinned at the red dashed bound of
 
 ### 3.5 Receptive field: what the mechanism looks like
 
-![Attention receptive field](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/attention_receptive_field.png)
+![Attention receptive field](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/attention_receptive_field.png)
 
 Rows are decode steps, columns are key positions. Green (left block): the reference prefix — every
 query, at every step, attends to all of it; this column block never shrinks. Blue (diagonal band):
 each query sees only the most recent 128 generated tokens — the band slides right as decoding
 advances and never widens. Gray: soft-forgotten output tokens — evicted, invisible. The visible-key
 count per row is at most `L_m + n`; that *is* why the cache cannot grow. (Axes are display-clipped
-to 100 reference / 300 generated tokens for readability. The full mask is in [`02_receptive_field_mask.npy`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask.npy), rendered again as [`02_receptive_field_mask_heatmap.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask_heatmap.png).
+to 100 reference / 300 generated tokens for readability. The full mask is in [`02_receptive_field_mask.npy`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask.npy), rendered again as [`02_receptive_field_mask_heatmap.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask_heatmap.png).
 
 ### 3.6 The generation that drove the trace
 
@@ -157,7 +157,7 @@ The output begins as structured table markup and later degenerates:
 <PAGE><|det|>table [0, 0, 999, 999]<|/det|><table><tr><td></td><td></td><td></td></tr><tr><td></td><td>1</td><td>2</td></tr>...
 ```
 
-Full text: [`generated_text.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/generated_text.txt), 4,218 chars / 1,497 tokens. Snippet: [`04_generated_text_snippet.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/04_generated_text_snippet.txt).
+Full text: [`generated_text.txt`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/generated_text.txt), 4,218 chars / 1,497 tokens. Snippet: [`04_generated_text_snippet.txt`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/04_generated_text_snippet.txt).
 By the end the output is a loop of `.` / `)` / `(` fragments. For this experiment that is a feature,
 not a bug: the run exists to force a long decode, and 1,497 tokens ≫ 128 means the window was
 exercised ~11.7× past its capacity. OCR quality is not the claim being tested here; memory behavior is.
@@ -220,14 +220,14 @@ Ordered by evidentiary strength:
 
 | Artifact | What it evidences |
 |---|---|
-| [`results/run_summary.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/run_summary.json) | Run anchors: `L_m=551`, `n=128`, bound 679, `T=1497` |
-| [`intermediate/01_token_budget.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/01_token_budget.json) | Eq. (6) bound and 39.79 MB from model geometry |
-| [`results/decoder_memory_trace.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/decoder_memory_trace.json) | Full 1,497-step allocated/peak trace |
-| [`intermediate/03_memory_trace_sample.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/03_memory_trace_sample.json) | First/last steps of the trace |
-| [`plots/decoder_memory_allocated_peak.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/decoder_memory_allocated_peak.png) | Flat decode memory; prefill sets lifetime peak |
-| [`plots/kv_cache_theory.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/kv_cache_theory.png) | `L_m + T` vs `L_m + min(n, T)` growth curves |
-| [`plots/attention_receptive_field.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/attention_receptive_field.png) | R-SWA mask: fixed reference block + sliding 128-wide band |
-| [`intermediate/02_receptive_field_mask.npy`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask.npy) / [`..._heatmap.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask_heatmap.png) | Raw mask data + heatmap render |
-| [`results/generated_text.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/generated_text.txt) | The 1,497-token output that stressed the window ~11.7× |
-| [`inputs/pages/page_0001.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/inputs/pages/page_0001.png), [`page_0002.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/inputs/pages/page_0002.png) | Rasterized paper pages used as input |
-| [`run.log`](../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/run.log) | Attention-class inspection, steady-state validation stats |
+| [`results/run_summary.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/run_summary.json) | Run anchors: `L_m=551`, `n=128`, bound 679, `T=1497` |
+| [`intermediate/01_token_budget.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/01_token_budget.json) | Eq. (6) bound and 39.79 MB from model geometry |
+| [`results/decoder_memory_trace.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/decoder_memory_trace.json) | Full 1,497-step allocated/peak trace |
+| [`intermediate/03_memory_trace_sample.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/03_memory_trace_sample.json) | First/last steps of the trace |
+| [`plots/decoder_memory_allocated_peak.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/decoder_memory_allocated_peak.png) | Flat decode memory; prefill sets lifetime peak |
+| [`plots/kv_cache_theory.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/kv_cache_theory.png) | `L_m + T` vs `L_m + min(n, T)` growth curves |
+| [`plots/attention_receptive_field.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/plots/attention_receptive_field.png) | R-SWA mask: fixed reference block + sliding 128-wide band |
+| [`intermediate/02_receptive_field_mask.npy`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask.npy) / [`..._heatmap.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/intermediate/02_receptive_field_mask_heatmap.png) | Raw mask data + heatmap render |
+| [`results/generated_text.txt`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/results/generated_text.txt) | The 1,497-token output that stressed the window ~11.7× |
+| [`inputs/pages/page_0001.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/inputs/pages/page_0001.png), [`page_0002.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/inputs/pages/page_0002.png) | Rasterized paper pages used as input |
+| [`run.log`](../../outputs/2026-07-26/000-unlimited-ocr-demo/002-attention-constant/run.log) | Attention-class inspection, steady-state validation stats |

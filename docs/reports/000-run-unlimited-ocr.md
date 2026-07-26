@@ -25,9 +25,9 @@ rasterized at 300 DPI, BASE mode (single square view, no cropping), `max_length=
 
 What the model actually saw, measured rather than assumed:
 
-- Input page: 2481 × 3508 px PNG — [`00_input_page.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png).
-- BASE preprocessing letterboxes that onto a 1024 × 1024 gray canvas and normalizes to a `[3, 1024, 1024]` bfloat16 tensor in [-1, 1] — [`01_preprocessed_global_view.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png).
-- Tokenized prompt — [`02_tokenized_prompt.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json):
+- Input page: 2481 × 3508 px PNG — [`00_input_page.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png).
+- BASE preprocessing letterboxes that onto a 1024 × 1024 gray canvas and normalizes to a `[3, 1024, 1024]` bfloat16 tensor in [-1, 1] — [`01_preprocessed_global_view.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png).
+- Tokenized prompt — [`02_tokenized_prompt.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json):
 
 ```json
 {
@@ -47,7 +47,7 @@ structure appears in the output came from the image, not from a clever prompt.
 
 ## Evidence: the raw stream is the whole story
 
-Everything downstream — the CSV, the boxed image, the final markdown — is a re-rendering of one decoded string: [`03_raw_generated_text.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt).
+Everything downstream — the CSV, the boxed image, the final markdown — is a re-rendering of one decoded string: [`03_raw_generated_text.txt`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt).
 
 Its spine:
 
@@ -67,7 +67,7 @@ The format is `<|det|>LABEL [x1, y1, x2, y2]<|/det|>CONTENT`. Coordinates live o
 
 The pipeline from this one string to every other artifact:
 
-1. **Regex parse → CSV.** `uocr.re_match` extracts each span; the notebook flattens it to one row per box in [`04_layout_predictions.csv`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv) — 8 rows, columns `label, box, x1, y1, x2, y2`. Full table:
+1. **Regex parse → CSV.** `uocr.re_match` extracts each span; the notebook flattens it to one row per box in [`04_layout_predictions.csv`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv) — 8 rows, columns `label, box, x1, y1, x2, y2`. Full table:
 
    | label | box |
    |---|---|
@@ -80,11 +80,11 @@ The pipeline from this one string to every other artifact:
    | image | `[168, 601, 825, 802]` |
    | image_caption | `[113, 813, 885, 896]` |
 
-Label counts, plotted in [`04_label_distribution.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png): **text 3, title 2, header 1, image 1, image_caption 1.**
+Label counts, plotted in [`04_label_distribution.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png): **text 3, title 2, header 1, image 1, image_caption 1.**
 
-2. **Boxes → visualization.** The same matches are drawn back onto the original page by `uocr.process_image_with_refs`, producing [`05_result_with_boxes.jpg`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg) and the equivalent `result_with_boxes.jpg` written by `model.infer` itself.
+2. **Boxes → visualization.** The same matches are drawn back onto the original page by `uocr.process_image_with_refs`, producing [`05_result_with_boxes.jpg`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg) and the equivalent `result_with_boxes.jpg` written by `model.infer` itself.
 
-3. **Stream → final markdown.** `model.infer` strips the tags into [`result.md`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md). One special case: the `image` region has **empty content after its `<|/det|>` tag** — the model does not describe figures, it localizes them. The pipeline crops the box `[168, 601, 825, 802]` out of the page into `images/0.jpg` and substitutes a markdown embed, so the abstract paragraph is followed by a markdown image reference to `images/0.jpg` and then the caption text.
+3. **Stream → final markdown.** `model.infer` strips the tags into [`result.md`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md). One special case: the `image` region has **empty content after its `<|/det|>` tag** — the model does not describe figures, it localizes them. The pipeline crops the box `[168, 601, 825, 802]` out of the page into `images/0.jpg` and substitutes a markdown embed, so the abstract paragraph is followed by a markdown image reference to `images/0.jpg` and then the caption text.
 
 So: raw `<|det|>` stream is the single source of truth; CSV is its tabular view, the boxed JPEG its
 spatial view, `result.md` its reading view. Debugging any of the three means reading the stream
@@ -110,7 +110,7 @@ first.
 
 Open the boxed overlay and check these specific things:
 
-![Detected regions over page 1](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg)
+![Detected regions over page 1](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg)
 
 - **Box tightness on Figure 1** (`image [168, 601, 825, 802]`): does the box hug the diagram, or
   bleed into the caption/abstract? Slop here pollutes the cropped `images/0.jpg`.
@@ -130,14 +130,14 @@ Open the boxed overlay and check these specific things:
 
 | Artifact | Learning value |
 |---|---|
-| [`first_1_base/single_base/result.md`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md) | The end product. Note the markdown image substitution pointing to `images/0.jpg` — figures become crops, not text. |
-| [`first_1_base/single_base/result_with_boxes.jpg`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg) | Grounding quality at a glance; check figure-box tightness and the "Abstract" label. |
-| [`intermediate/00_input_page.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png) | What 300 DPI born-digital input looks like before any squeezing. |
-| [`intermediate/01_preprocessed_global_view.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png) | The letterbox reality of BASE mode — compare with the input to feel the resolution loss. |
-| [`intermediate/02_tokenized_prompt.json`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json) | Proof the run is 273/277 visual tokens; where the 16×16 query grid shows up concretely. |
-| [`intermediate/02_formatted_prompt.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_formatted_prompt.txt) | The full "instruction": `<image>document parsing.` — 24 bytes. |
-| [`intermediate/03_raw_generated_text.txt`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt) | The single source of truth: label + box + content stream. Read this first when anything downstream looks wrong. |
-| [`intermediate/04_layout_predictions.csv`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv) | The stream as data: 8 rows × (label, box, x1–y2). The join point for any quantitative follow-up. |
-| [`intermediate/04_label_distribution.png`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png) | Label histogram; on multi-page runs this is where class imbalance would surface. |
-| [`intermediate/05_result_with_boxes.jpg`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg) | Notebook-rebuilt boxed view; matching `result_with_boxes.jpg` confirms the replication of the pipeline is faithful. |
-| [`run.log`](../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/run.log) | Execution trace: RTX 3090, bfloat16, artifact sizes; where to look when an artifact is missing or empty. |
+| [`first_1_base/single_base/result.md`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md) | The end product. Note the markdown image substitution pointing to `images/0.jpg` — figures become crops, not text. |
+| [`first_1_base/single_base/result_with_boxes.jpg`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg) | Grounding quality at a glance; check figure-box tightness and the "Abstract" label. |
+| [`intermediate/00_input_page.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png) | What 300 DPI born-digital input looks like before any squeezing. |
+| [`intermediate/01_preprocessed_global_view.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png) | The letterbox reality of BASE mode — compare with the input to feel the resolution loss. |
+| [`intermediate/02_tokenized_prompt.json`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json) | Proof the run is 273/277 visual tokens; where the 16×16 query grid shows up concretely. |
+| [`intermediate/02_formatted_prompt.txt`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_formatted_prompt.txt) | The full "instruction": `<image>document parsing.` — 24 bytes. |
+| [`intermediate/03_raw_generated_text.txt`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt) | The single source of truth: label + box + content stream. Read this first when anything downstream looks wrong. |
+| [`intermediate/04_layout_predictions.csv`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv) | The stream as data: 8 rows × (label, box, x1–y2). The join point for any quantitative follow-up. |
+| [`intermediate/04_label_distribution.png`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png) | Label histogram; on multi-page runs this is where class imbalance would surface. |
+| [`intermediate/05_result_with_boxes.jpg`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg) | Notebook-rebuilt boxed view; matching `result_with_boxes.jpg` confirms the replication of the pipeline is faithful. |
+| [`run.log`](../../outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/run.log) | Execution trace: RTX 3090, bfloat16, artifact sizes; where to look when an artifact is missing or empty. |
