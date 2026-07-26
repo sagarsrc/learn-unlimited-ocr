@@ -1,0 +1,74 @@
+Config: source=pdf pdf_url=https://github.com/baidu/Unlimited-OCR/raw/main/Unlimited-OCR.pdf runs=['first_1_base']
+[EnvironmentChecker] GPU: NVIDIA GeForce RTX 3090
+[EnvironmentChecker] dtype: torch.bfloat16
+Outputs: CONFIG.dtype=torch.bfloat16
+[ModelLoader] Loading baidu/Unlimited-OCR ...
+[ModelLoader] Model loaded
+Outputs: tokenizer=LlamaTokenizerFast model=UnlimitedOCRForCausalLM
+[PdfRasterizer] Rasterized 1 pages to /tmp/pdf_ocr_c0bhdsog
+Outputs: loaded 1 pages, first=/tmp/pdf_ocr_c0bhdsog/page_0001.png
+[Visualizer] Displayed /tmp/pdf_ocr_c0bhdsog/page_0001.png
+[Showcase] 00_input_page.png: PIL image size=(2481, 3508) mode=RGB
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png (658777 bytes)
+[InputImageShowcase] input size (W, H)=(2481, 3508)
+Outputs: input_image.size=(2481, 3508)
+[RunOrchestrator] Starting run 'first_1_base' with 1 pages
+[SingleImageInferer] Wrote results to outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base
+[RunOrchestrator] Finished run 'first_1_base'
+Outputs: all runs complete
+Outputs: uocr module=transformers_modules.baidu.Unlimited_hyphen_OCR.27a5997fa0524f9adcf9e2f3d5e7d3f784434fa5.modeling_unlimitedocr
+[Showcase] 01_preprocessed_global_view.png: PIL image size=(1024, 1024) mode=RGB
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png (308516 bytes)
+[Showcase] 01_preprocessed_tensor.png: tensor shape=(3, 1024, 1024) dtype=torch.bfloat16
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_tensor.png (309002 bytes)
+[BasePreprocessor] tensor shape=(3, 1024, 1024) dtype=torch.bfloat16
+Outputs: image_tensor.shape=(3, 1024, 1024)
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json (3517 bytes)
+[Showcase] 02_tokenized_prompt.json: 3517 bytes of JSON
+[Showcase] 02_formatted_prompt.txt: str len=24
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_formatted_prompt.txt (24 bytes)
+[PromptTokenizer] num_tokens=277 visual=273 text=4
+Outputs: tokenized num_tokens=277
+[Showcase] generated_ids: tensor shape=(512,) dtype=torch.int64
+[Showcase] 03_raw_generated_text.txt: str len=2303
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt (2317 bytes)
+Outputs: raw_output len=2303
+[Showcase] 04_layout_predictions.csv: DataFrame shape=(8, 6) columns=['label', 'box', 'x1', 'y1', 'x2', 'y2']
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv (384 bytes)
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png (65617 bytes)
+[LayoutPredictionParser] parsed 8 boxes across 5 labels
+Outputs: layout_df.shape=(8, 6)
+[Showcase] Saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg (839868 bytes)
+[BoxedResultShowcase] saved outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg
+Outputs: boxed_path=outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg
+[OutputInspector] --- outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base ---
+[OutputInspector]  outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result.md  (1976 bytes)
+[OutputInspector]  ------------------------------------------------------------
+[OutputInspector]  | Baidu百度
+[OutputInspector]  | Unlimited OCR Works
+[OutputInspector]  | Welcome the Era of One-shot Long-horizon Parsing
+[OutputInspector]  | Baidu Inc.
+[OutputInspector]  | Abstract
+[OutputInspector]  | Recently, end-to-end OCR models, exemplified by DeepSeek OCR, have once again thrust OCR into the spotlight. A widely held view is that employing a large language model (LLM) as the decoder allows the model to leverage the prior distribution of language, leading to improved OCR performance. However, the downside is equally evident: as the output sequence lengthens, the accumulated KV cache drives up memory consumption and progressively slows down generation. This stands in stark contrast to humans, who exhibit no such decline in efficiency during long-horizon copying tasks. In this technical report, we propose Unlimited OCR, a model designed to emulate human parsing working memory. Taking DeepSeek OCR as the baseline, we replace all attention layers in the decoder with our proposed Reference Sliding Window Attention (R-SWA), which reduces attention computation costs while maintaining a constant KV cache throughout the entire decoding process. By combining the high compression rate of DeepSeek OCR's encoder with our constant KV cache design, Unlimited OCR can transcribe dozens of pages of documents in a single forward pass under a standard maximum length of 32K. More importantly, R-SWA is a general-purpose parsing attention mechanism — beyond OCR, it is equally applicable to tasks such as ASR, translation, etc. Codes and model weights are publicly available at http://github.com/bai
+[OutputInspector]  | ... [470 more chars]
+[OutputInspector]  ------------------------------------------------------------
+[OutputInspector]  outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/result_with_boxes.jpg  (842616 bytes)
+[OutputInspector]  outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/first_1_base/single_base/images/0.jpg  (162515 bytes)
+[Validation] All expected artifacts exist
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/00_input_page.png
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_global_view.png
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/01_preprocessed_tensor.png
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_tokenized_prompt.json
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/02_formatted_prompt.txt
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/03_raw_generated_text.txt
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_layout_predictions.csv
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/04_label_distribution.png
+[Validation] Found intermediate outputs/2026-07-26/000-unlimited-ocr-demo/000-run-unlimited-ocr/intermediate/05_result_with_boxes.jpg
+[Validation] All intermediate artifacts exist and are non-empty
+
+Cheat sheet
+GUNDAM mode: image_size=640, crop_mode=True
+BASE mode: image_size=1024, crop_mode=False
+Multi-page mode: image_size=1024, ngram_window=1024
+Long outputs: keep max_length=32768 and no_repeat_ngram_size=35
+Change CONFIG.runs or CONFIG.source to try other configurations

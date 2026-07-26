@@ -1,0 +1,46 @@
+{
+  "num_steps": 1497,
+  "allocated_mb_shape": [
+    1497
+  ],
+  "first_steps": [
+    {
+      "step": 0,
+      "seq_len": 551,
+      "allocated_mb": 6517.47509765625,
+      "peak_mb": 6933.67919921875
+    },
+    {
+      "step": 1,
+      "seq_len": 1,
+      "allocated_mb": 6492.33935546875,
+      "peak_mb": 6933.67919921875
+    },
+    {
+      "step": 2,
+      "seq_len": 1,
+      "allocated_mb": 6492.33935546875,
+      "peak_mb": 6933.67919921875
+    }
+  ],
+  "last_steps": [
+    {
+      "step": 1494,
+      "seq_len": 1,
+      "allocated_mb": 6492.373046875,
+      "peak_mb": 6933.67919921875
+    },
+    {
+      "step": 1495,
+      "seq_len": 1,
+      "allocated_mb": 6492.373046875,
+      "peak_mb": 6933.67919921875
+    },
+    {
+      "step": 1496,
+      "seq_len": 1,
+      "allocated_mb": 6492.373046875,
+      "peak_mb": 6933.67919921875
+    }
+  ]
+}

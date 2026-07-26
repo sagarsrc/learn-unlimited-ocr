@@ -1,0 +1,12 @@
+{
+  "hidden_state_shape": [
+    1,
+    11,
+    1280
+  ],
+  "hidden_state_dtype": "torch.bfloat16",
+  "mean": 0.00469115749001503,
+  "std": 0.5465789437294006,
+  "min": -4.59375,
+  "max": 8.875
+}

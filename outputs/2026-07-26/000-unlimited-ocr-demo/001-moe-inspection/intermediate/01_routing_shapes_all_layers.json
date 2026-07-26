@@ -1,0 +1,123 @@
+{
+  "1": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "2": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "3": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "4": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "5": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "6": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "7": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "8": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "9": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "10": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  },
+  "11": {
+    "topk_idx_shape": [
+      11,
+      6
+    ],
+    "topk_weight_shape": [
+      11,
+      6
+    ],
+    "aux_loss": null
+  }
+}

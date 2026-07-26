@@ -1,0 +1,33 @@
+{
+  "sample_text": "The quick brown fox jumps over the lazy dog.",
+  "input_ids_shape": [
+    1,
+    11
+  ],
+  "input_ids": [
+    0,
+    671,
+    4787,
+    13769,
+    46012,
+    54994,
+    1060,
+    270,
+    41638,
+    6397,
+    16
+  ],
+  "tokens": [
+    "<\uff5cbegin\u2581of\u2581sentence\uff5c>",
+    "The",
+    "\u0120quick",
+    "\u0120brown",
+    "\u0120fox",
+    "\u0120jumps",
+    "\u0120over",
+    "\u0120the",
+    "\u0120lazy",
+    "\u0120dog",
+    "."
+  ]
+}
