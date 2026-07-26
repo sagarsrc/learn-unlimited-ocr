@@ -29,11 +29,20 @@ dependencies = [
     "pillow>=12.3.0",
     "matplotlib>=3.11.1",
     "black>=26.5.1",
+    "ipython>=8.0.0",
+    "jupyter>=1.1.0",
+    "requests>=2.34.0",
+    "numpy>=2.0.0",
+    "seaborn>=0.13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "black>=26.5.1",
+    "ipython>=8.0.0",
+    "jupyter>=1.1.0",
+    "numpy>=2.0.0",
+    "seaborn>=0.13.0",
 ]
 
 [project.urls]

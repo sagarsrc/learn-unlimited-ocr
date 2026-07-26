@@ -3,6 +3,7 @@ import datetime
 import logging
 import os
 import tempfile
+import requests
 import textwrap
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -57,8 +58,10 @@ class Config:
         Required. Hugging Face model identifier.
     source : str
         Required. Document source, either "pdf" or "synthetic".
-    pdf_path : Path | None
-        Optional. Path to the PDF when source is "pdf".
+    pdf_url : str | None
+        Optional. URL to download the PDF when source is "pdf".
+    pdf_cache_path : Path
+        Required. Local path to cache the downloaded PDF.
     synthetic_page_count : int
         Required. Number of synthetic pages to render when source is "synthetic".
     runs : Sequence[RunConfig]
@@ -93,7 +96,8 @@ class Config:
     out_dir: Path
     model_name: str
     source: str
-    pdf_path: Path | None
+    pdf_url: str | None
+    pdf_cache_path: Path
     synthetic_page_count: int
     runs: Sequence[RunConfig]
     base_size: int
@@ -123,12 +127,13 @@ CONFIG = Config(
     out_dir=Path(f"outputs/{TODAY}/unlimited-ocr-demo-run-unlimited-ocr"),
     model_name="baidu/Unlimited-OCR",
     source="pdf",
-    pdf_path=Path("/workspace/Unlimited-OCR/Unlimited-OCR.pdf"),
+    pdf_url="https://github.com/baidu/Unlimited-OCR/raw/main/Unlimited-OCR.pdf",
+    pdf_cache_path=Path("inputs/Unlimited-OCR.pdf"),
     synthetic_page_count=3,
     runs=(
         RunConfig(
-            name="first_3_all",
-            max_pages=3,
+            name="first_4_all",
+            max_pages=4,
             run_gundam=True,
             run_base=True,
             run_multi=True,
@@ -153,13 +158,13 @@ CONFIG = Config(
     sample_dpi=300,
 )
 logger.info(
-    "Config: source=%s pdf_path=%s runs=%s",
+    "Config: source=%s pdf_url=%s runs=%s",
     CONFIG.source,
-    CONFIG.pdf_path,
+    CONFIG.pdf_url,
     [r.name for r in CONFIG.runs],
 )
 if CONFIG.source == "pdf":
-    assert CONFIG.pdf_path and CONFIG.pdf_path.exists(), "PDF not found"
+    assert CONFIG.pdf_url, "pdf_url required when source=pdf"
 
 
 # %% [markdown]
@@ -489,6 +494,8 @@ class DocumentLoader:
     def load(self) -> List[Path]:
         """Load document pages according to CONFIG.source.
 
+        Downloads the PDF once to pdf_cache_path when source is "pdf".
+
         Returns
         -------
         List[Path]
@@ -496,9 +503,24 @@ class DocumentLoader:
         """
         max_pages = max(run.max_pages for run in self.config.runs)
         if self.config.source == "pdf":
-            assert self.config.pdf_path is not None
+            assert self.config.pdf_url is not None
+            cache_path = self.config.pdf_cache_path
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            if not cache_path.exists():
+                logger.info(
+                    "[DocumentLoader] Downloading PDF from %s",
+                    self.config.pdf_url,
+                )
+                response = requests.get(self.config.pdf_url, timeout=120)
+                response.raise_for_status()
+                cache_path.write_bytes(response.content)
+                logger.info(
+                    "[DocumentLoader] Saved PDF to %s (%s bytes)",
+                    cache_path,
+                    len(response.content),
+                )
             rasterizer = PdfRasterizer(self.config.sample_dpi)
-            _, paths = rasterizer.rasterize(self.config.pdf_path, max_pages)
+            _, paths = rasterizer.rasterize(cache_path, max_pages)
             return paths
         renderer = SamplePageRenderer(self.config)
         count = max(max_pages, self.config.synthetic_page_count)
